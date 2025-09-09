@@ -16,8 +16,11 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
     private String description;
     private MusicGenre genre;
     private Studio studio;
+    private int ownerId; // Добавлено поле для идентификатора владельца
 
-    public MusicBand(String name, Coordinates coordinates, int numberOfParticipants, String description, MusicGenre genre, Studio studio){
+    // Конструктор для создания нового объекта
+    public MusicBand(String name, Coordinates coordinates, int numberOfParticipants,
+                     String description, MusicGenre genre, Studio studio, int ownerId) {
         this.id = GeneratorId.generateId();
         setName(name);
         setCoordinates(coordinates);
@@ -26,33 +29,53 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
         setDescription(description);
         setGenre(genre);
         setStudio(studio);
+        setOwnerId(ownerId); // Устанавливаем владельца
     }
-    public MusicBand(Long id, String name, Coordinates coordinates, ZonedDateTime creationDate, int numberOfParticipants, String description, MusicGenre genre, Studio studio){
-        if(id == null){
+
+    // Конструктор для загрузки из БД
+    public MusicBand(Long id, String name, Coordinates coordinates, ZonedDateTime creationDate,
+                     int numberOfParticipants, String description, MusicGenre genre,
+                     Studio studio, int ownerId) {
+        if (id == null) {
             throw new IllegalArgumentException("Id value cannot be null");
-        }else if(id <= 0){
+        } else if (id <= 0) {
             throw new IllegalArgumentException("Id should be a positive number");
-        }else{
+        } else {
             this.id = id;
             GeneratorId.setId(id);
         }
         setName(name);
         setCoordinates(coordinates);
-        if(creationDate == null){
+        if (creationDate == null) {
             throw new IllegalArgumentException("Creation date value cannot be null");
-        }else{
+        } else {
             this.creationDate = creationDate;
         }
         setNumberOfParticipants(numberOfParticipants);
         setDescription(description);
         setGenre(genre);
         setStudio(studio);
+        setOwnerId(ownerId); // Устанавливаем владельца
     }
 
-    public MusicBand(){
+    public MusicBand() {
         this.creationDate = ZonedDateTime.now();
     }
 
+    // Добавлены геттер и сеттер для ownerId
+    public void setOwnerId(int ownerId) {
+        if (ownerId <= 0) {
+            throw new IllegalArgumentException("Owner ID should be a positive number");
+        } else {
+            this.ownerId = ownerId;
+        }
+    }
+
+    public int getOwnerId() {
+        return ownerId;
+    }
+
+    // Остальные методы остаются без изменений...
     public void setCreationDate(ZonedDateTime creationDate) {
         if (creationDate == null) {
             throw new IllegalArgumentException("Creation date value cannot be null");
@@ -61,85 +84,85 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
         }
     }
 
-    public void setId(Long id){
+    public void setId(Long id) {
         this.id = id;
     }
 
-    public Long getId(){return id;}
+    public Long getId() { return id; }
 
-    public void setName(String name){
-        if(name == null || name.trim().isEmpty()){
+    public void setName(String name) {
+        if (name == null || name.trim().isEmpty()) {
             throw new IllegalArgumentException("Name value cannot be empty or null");
-        }else{
+        } else {
             this.name = name;
         }
     }
 
-    public String getName(){return name;}
+    public String getName() { return name; }
 
-    public void setCoordinates(Coordinates coordinates){
-        if(coordinates == null){
+    public void setCoordinates(Coordinates coordinates) {
+        if (coordinates == null) {
             throw new IllegalArgumentException("Coordinates value cannot be null");
-        }else{
+        } else {
             this.coordinates = coordinates;
         }
     }
 
-    public Coordinates getCoordinates(){return coordinates;}
+    public Coordinates getCoordinates() { return coordinates; }
 
-    public ZonedDateTime getCreationDate(){return creationDate;}
+    public ZonedDateTime getCreationDate() { return creationDate; }
 
-    public void setNumberOfParticipants(int numberOfParticipants){
-        if(numberOfParticipants <= 0){
+    public void setNumberOfParticipants(int numberOfParticipants) {
+        if (numberOfParticipants <= 0) {
             throw new IllegalArgumentException("Number of participants should be a positive number");
-        }else{
+        } else {
             this.numberOfParticipants = numberOfParticipants;
         }
     }
 
-    public int getNumberOfParticipants(){return  numberOfParticipants;}
+    public int getNumberOfParticipants() { return numberOfParticipants; }
 
-    public void setDescription(String description){
-        if(description == null || description.trim().isEmpty()){
+    public void setDescription(String description) {
+        if (description == null || description.trim().isEmpty()) {
             throw new IllegalArgumentException("Description cannot be empty or null");
-        }else{
+        } else {
             this.description = description;
         }
     }
 
-    public String getDescription(){return description;}
+    public String getDescription() { return description; }
 
-    public void setGenre(MusicGenre genre){
-        if(genre == null){
+    public void setGenre(MusicGenre genre) {
+        if (genre == null) {
             throw new IllegalArgumentException("Music genre cannot be null");
-        }else{
+        } else {
             this.genre = genre;
         }
     }
 
-    public MusicGenre getGenre(){return genre;}
+    public MusicGenre getGenre() { return genre; }
 
-    public void setStudio(Studio studio){
-        if(studio == null){
+    public void setStudio(Studio studio) {
+        if (studio == null) {
             throw new IllegalArgumentException("Studio cannot be null");
-        }else{
+        } else {
             this.studio = studio;
         }
     }
 
-    public Studio getStudio(){return studio;}
+    public Studio getStudio() { return studio; }
 
     public static final Comparator<MusicBand> compareByDateAndName = Comparator
             .comparing(MusicBand::getCreationDate)
             .thenComparing(MusicBand::getName);
 
     @Override
-    public int compareTo(MusicBand other_band){
+    public int compareTo(MusicBand other_band) {
         return name.compareTo(other_band.getName());
     }
 
     @Override
-    public String toString(){
+    public String toString() {
         return String.format("MusicBand[\n" +
                         "id=%d\n" +
                         "name=%s\n" +
@@ -149,14 +172,16 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
                         "description=%s\n" +
                         "genre=%s\n" +
                         "studio=%s\n" +
+                        "ownerId=%d\n" + // Добавлено в вывод
                         "]",
-                id, name, coordinates, creationDate.format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH-mm-ss z")), numberOfParticipants, description, genre, studio);
+                id, name, coordinates, creationDate.format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH-mm-ss z")),
+                numberOfParticipants, description, genre, studio, ownerId);
     }
 
     @Override
-    public boolean equals(Object other){
-        if(this == other) return true;
-        if(!(other instanceof MusicBand)) return false;
+    public boolean equals(Object other) {
+        if (this == other) return true;
+        if (!(other instanceof MusicBand)) return false;
         MusicBand o = (MusicBand) other;
         return Objects.equals(id, o.id) &&
                 Objects.equals(name, o.name) &&
@@ -165,11 +190,12 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
                 numberOfParticipants == o.numberOfParticipants &&
                 Objects.equals(description, o.description) &&
                 Objects.equals(genre, o.genre) &&
-                Objects.equals(studio, o.studio);
+                Objects.equals(studio, o.studio) &&
+                ownerId == o.ownerId; // Добавлено в сравнение
     }
 
     @Override
-    public int hashCode(){
+    public int hashCode() {
         return Objects.hash(id,
                 name,
                 coordinates,
@@ -177,6 +203,7 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
                 numberOfParticipants,
                 description,
                 genre,
-                studio);
+                studio,
+                ownerId); // Добавлено в хэш
     }
 }
