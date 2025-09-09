@@ -1,6 +1,7 @@
 package commands.commandsWithArgument;
 
 import commands.Executor;
+import data.User;
 
 public class Execute_script implements CommandWithArgument<String> {
     private final String commandName = "execute_script";
@@ -13,10 +14,15 @@ public class Execute_script implements CommandWithArgument<String> {
 
     @Override
     public String execute() {
+        throw new UnsupportedOperationException("This command requires user authentication");
+    }
+
+    public String execute(User user) {
+        if (user == null) return "Error: Authentication required";
         if (argument == null || argument.trim().isEmpty()) {
             return "Error: Script filename is required";
         }
-        return executor.execute_script(argument);
+        return executor.execute_script(argument, user);
     }
 
     @Override
@@ -35,5 +41,10 @@ public class Execute_script implements CommandWithArgument<String> {
     @Override
     public String getArgument() {
         return argument;
+    }
+
+    @Override
+    public boolean requiresUser() {
+        return true;
     }
 }
