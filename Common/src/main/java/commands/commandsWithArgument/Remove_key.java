@@ -1,11 +1,9 @@
 package commands.commandsWithArgument;
 
-import commands.CommandWithUser;
 import commands.Executor;
-import data.MusicBand;
 import data.User;
 
-public class Remove_key implements CommandWithArgument<Long>, CommandWithUser {
+public class Remove_key implements CommandWithArgument<Long>{
     private String commandName = "remove_key";
     private Executor executor;
     private Long argument;
@@ -19,17 +17,9 @@ public class Remove_key implements CommandWithArgument<Long>, CommandWithUser {
         throw new UnsupportedOperationException("This command requires user authentication");
     }
 
-    @Override
     public String execute(User user) {
         if (user == null) return "Error: Authentication required";
         return executor.remove_key(argument, user);
-    }
-
-    public String executeWithMusicBand(MusicBand band, User user) {
-        if (user == null) {
-            return "Error: Authentication required";
-        }
-        return executor.update(argument, band, user);
     }
 
     @Override
