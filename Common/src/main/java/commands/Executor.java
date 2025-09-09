@@ -106,15 +106,33 @@ public class Executor {
         }
     }
 
-    public String clear() {
-        if (musicBands == null) {
-            return "The collection is 'null'";
-        } else if (!musicBands.isEmpty()) {
-            int sizeBefore = musicBands.size();
-            musicBands.clear();
-            return "The collection was successfully cleared. " + sizeBefore + " elements removed";
-        } else {
-            return "The collection is empty";
+    public String clear(User user) {
+        if (user == null) return "Error: Authentication required";
+
+        collectionLock.writeLock().lock();
+        try {
+            if (musicBands == null) {
+                return "The collection is 'null'";
+            } else if (!musicBands.isEmpty()) {
+                int sizeBefore = musicBands.size();
+
+                // Очищаем только элементы, принадлежащие пользователю
+                int deletedCount = dbManager.clearUserMusicBands(user.getId());
+
+                if (deletedCount > 0) {
+                    // После успеха в БД удаляем только элементы пользователя из памяти
+                    musicBands.entrySet().removeIf(entry -> entry.getValue().getOwnerId() == user.getId());
+                    return "The collection was successfully cleared. " + deletedCount + " elements removed";
+                } else {
+                    return "No elements found for this user to clear.";
+                }
+            } else {
+                return "The collection is empty";
+            }
+        } catch (SQLException e) {
+            return "Database error during clear: " + e.getMessage();
+        } finally {
+            collectionLock.writeLock().unlock();
         }
     }
 
