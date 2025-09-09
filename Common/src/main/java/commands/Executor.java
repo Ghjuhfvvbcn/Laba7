@@ -264,17 +264,26 @@ public class Executor {
     }
 
     public String filter_starts_with_name(String name) {
-        List<MusicBand> bands = musicBands.values().stream()
-                .filter(band -> band.getName().startsWith(name))
-                .collect(Collectors.toList());
+        collectionLock.readLock().lock();
+        try {
+            List<MusicBand> bands = musicBands.values().stream()
+                    .filter(band -> band.getName().startsWith(name))
+                    .collect(Collectors.toList());
 
-        String bandsString = bands.stream()
-                .map(MusicBand::toString)
-                .collect(Collectors.joining("\n"));
+            if (bands.isEmpty()) {
+                return "No music groups found whose names start with \"" + name + "\"";
+            }
 
-        return "Found " + bands.size() +
-                " music groups whose names start with \"" + name + "\"\n" +
-                bandsString;
+            String bandsString = bands.stream()
+                    .map(MusicBand::toString)
+                    .collect(Collectors.joining("\n"));
+
+            return "Found " + bands.size() +
+                    " music groups whose names start with \"" + name + "\"\n" +
+                    bandsString;
+        } finally {
+            collectionLock.readLock().unlock();
+        }
     }
 
     public String insert(Long key, MusicBand band, User user) { // Добавили аргумент User
