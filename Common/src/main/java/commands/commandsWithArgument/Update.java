@@ -1,9 +1,11 @@
 package commands.commandsWithArgument;
 
+import commands.CommandWithUser;
 import commands.Executor;
 import data.MusicBand;
+import data.User;
 
-public class Update implements CommandWithArgument<Long>{
+public class Update implements CommandWithArgument<Long>, CommandWithUser {
     private String commandName = "update";
     private Long argument;
     private Executor executor;
@@ -14,11 +16,21 @@ public class Update implements CommandWithArgument<Long>{
 
     @Override
     public String execute(){
-        return executor.update(argument, null);
+        throw new UnsupportedOperationException("This command requires user authentication");
+    }
+    @Override
+    public String execute(User user) {
+        if (user == null) {
+            return "Error: Authentication required";
+        }
+        return executor.insert(argument, null, user);
     }
 
-    public String executeWithMusicBand(MusicBand musicBand){
-        return executor.update(argument, musicBand);
+    public String executeWithMusicBand(MusicBand band, User user) {
+        if (user == null) {
+            return "Error: Authentication required";
+        }
+        return executor.insert(argument, band, user);
     }
 
     @Override
@@ -38,4 +50,9 @@ public class Update implements CommandWithArgument<Long>{
 
     @Override
     public String getCommandName(){return commandName;}
+
+    @Override
+    public boolean requiresUser() {
+        return true; // требует аутентификации
+    }
 }

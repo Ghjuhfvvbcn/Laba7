@@ -16,7 +16,7 @@ public class Insert implements CommandWithArgument<Long>, CommandWithUser {
 
     @Override
     public String execute(){
-// Этот метод теперь будет выбрасывать исключение, так как требует пользователя
+        // Этот метод теперь будет выбрасывать исключение, так как требует пользователя
         throw new UnsupportedOperationException("This command requires user authentication");
     }
 
