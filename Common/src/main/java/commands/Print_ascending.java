@@ -15,4 +15,9 @@ public class Print_ascending implements Command{
 
     @Override
     public String getCommandName(){return commandName;}
+
+    @Override
+    public boolean requiresUser() {
+        return false; // не требует аутентификации
+    }
 }

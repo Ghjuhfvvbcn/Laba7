@@ -17,4 +17,9 @@ public class Help implements Command{
     public String getCommandName(){
         return commandName;
     }
+
+    @Override
+    public boolean requiresUser() {
+        return false; // не требует аутентификации
+    }
 }
