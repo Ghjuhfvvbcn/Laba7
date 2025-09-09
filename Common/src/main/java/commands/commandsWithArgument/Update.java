@@ -23,14 +23,14 @@ public class Update implements CommandWithArgument<Long>, CommandWithUser {
         if (user == null) {
             return "Error: Authentication required";
         }
-        return executor.insert(argument, null, user);
+        return executor.update(argument, null, user);
     }
 
     public String executeWithMusicBand(MusicBand band, User user) {
         if (user == null) {
             return "Error: Authentication required";
         }
-        return executor.insert(argument, band, user);
+        return executor.update(argument, band, user);
     }
 
     @Override
