@@ -397,23 +397,47 @@ public class Executor {
         }
     }
 
-    public String replace_if_lower(Long key, MusicBand newBand) {
-        if (musicBands.isEmpty()) {
-            return "The collection is empty";
-        }
+    public String replace_if_lower(Long key, MusicBand newBand, User user) {
+        if (user == null) return "Error: Authentication required";
 
-        newBand.setId(key);
-        boolean replaced = musicBands.computeIfPresent(key, (k, oldBand) ->
-                compareByDateAndName.compare(oldBand, newBand) > 0 ? newBand : oldBand
-        ) != musicBands.get(key);
+        collectionLock.writeLock().lock();
+        try {
+            if (musicBands.isEmpty()) {
+                return "The collection is empty";
+            }
 
-        if (replaced) {
-            saveCollection();
-            return "Music band replaced successfully.";
-        } else {
-            return musicBands.containsKey(key) ?
-                    "New value is not lower than existing value." :
-                    "The collection doesn't contain the key " + key;
+            // Проверяем существование ключа и права доступа
+            if (!musicBands.containsKey(key)) {
+                return "The collection doesn't contain the key " + key;
+            }
+
+            MusicBand oldBand = musicBands.get(key);
+            if (oldBand.getOwnerId() != user.getId()) {
+                return "Error: You don't have permission to replace this band";
+            }
+
+            // Проверяем условие замены (новый элемент должен быть "меньше")
+            if (compareByDateAndName.compare(oldBand, newBand) <= 0) {
+                return "New value is not lower than existing value.";
+            }
+
+            // Заменяем в БД
+            newBand.setId(key);
+            newBand.setOwnerId(user.getId()); // Сохраняем владельца
+
+            boolean success = dbManager.updateMusicBand(key, newBand, user.getId());
+            if (success) {
+                // Только после успеха в БД заменяем в памяти
+                musicBands.put(key, newBand);
+                return "Music band replaced successfully.";
+            } else {
+                return "Failed to replace music band in database.";
+            }
+
+        } catch (SQLException e) {
+            return "Database error during replace_if_lower: " + e.getMessage();
+        } finally {
+            collectionLock.writeLock().unlock();
         }
     }
 
