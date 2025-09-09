@@ -10,6 +10,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Map;
 import java.util.HashSet;
@@ -26,32 +27,22 @@ public class ServerMain {
     private static Set<String> connectedClients = new HashSet<>();
 
     public static void main(String[] args) {
-        if (args.length != 1) {
-            System.err.println("Usage: java ServerMain <csv_file>");
-            System.exit(1);
-        }
+        // Параметры для подключения к БД (возможно, вынесете их в аргументы командной строки)
+        String dbHost = "pg"; // Хост из задания
+        String dbName = "studs"; // Имя базы данных из задания
+        String dbUrl = "jdbc:postgresql://" + dbHost + "/" + dbName;
+        String dbUser = "s465345"; // Здесь ваш личный логин для доступа к серверу кафедры
+        String dbPassword = "dcxOUhUo8IMFxqAD"; // Ваш пароль
 
-        file_csv = new File(args[0]);
+        // 1. Подключение к БД и автоматическое создание таблиц
+        DatabaseManager dbManager;
         try {
-            if (!file_csv.exists()) {
-                throw new IOException("File does not exist: " + file_csv.getAbsolutePath());
-            }
-
-            if (!file_csv.isFile()) {
-                throw new IOException("Path is not a file: " + file_csv.getAbsolutePath());
-            }
-
-            if (!file_csv.canRead()) {
-                throw new IOException("Cannot read file: " + file_csv.getAbsolutePath());
-            }
-
-            if (!file_csv.canWrite()) {
-                System.err.println("Warning: File is read-only: " + file_csv.getAbsolutePath());
-            }
-
-        } catch (IOException e) {
-            System.err.println("File access error: " + e.getMessage());
+            dbManager = new DatabaseManager(dbUrl, dbUser, dbPassword);
+            System.out.println("hello from database");
+        } catch (SQLException e) {
+            System.err.println("Fatal: Cannot connect to database: " + e.getMessage());
             System.exit(1);
+            return;
         }
 
         executor = new Executor(file_csv);
