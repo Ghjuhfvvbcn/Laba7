@@ -441,15 +441,23 @@ public class Executor {
         }
     }
 
-    public String execute_script(String filename) {
+    public String execute_script(String filename, User user) {
+        if (user == null) return "Error: Authentication required";
+
         File scriptFile = new File(filename);
         String canonicalPath = null;
 
         try {
             canonicalPath = scriptFile.getCanonicalPath();
 
-            if (executingScripts.contains(canonicalPath)) {
-                return "Error: Recursive script execution detected for: " + filename;
+            // Используем readLock для проверки рекурсии (только чтение)
+            collectionLock.readLock().lock();
+            try {
+                if (executingScripts.contains(canonicalPath)) {
+                    return "Error: Recursive script execution detected for: " + filename;
+                }
+            } finally {
+                collectionLock.readLock().unlock();
             }
 
             if (!scriptFile.exists() || !scriptFile.isFile()) {
@@ -459,7 +467,13 @@ public class Executor {
                 return "Error: Cannot read script file: " + filename;
             }
 
-            executingScripts.add(canonicalPath);
+            // Добавляем в список исполняемых скриптов (требует writeLock)
+            collectionLock.writeLock().lock();
+            try {
+                executingScripts.add(canonicalPath);
+            } finally {
+                collectionLock.writeLock().unlock();
+            }
 
             Console previousConsole = consoleScript;
 
@@ -491,9 +505,10 @@ public class Executor {
                                         .append(": Error: execute_script requires filename\n");
                                 continue;
                             }
-                            result.append(execute_script(input.argument)).append("\n");
+                            // Передаем пользователя в рекурсивный вызов
+                            result.append(execute_script(input.argument, user)).append("\n");
                         } else {
-                            result.append(processScriptCommand(input, lineNumber)).append("\n");
+                            result.append(processScriptCommand(input, lineNumber, user)).append("\n");
                         }
 
                     } catch (Exception e) {
@@ -511,12 +526,18 @@ public class Executor {
             return "Error reading script: " + e.getMessage();
         } finally {
             if (canonicalPath != null) {
-                executingScripts.remove(canonicalPath);
+                // Удаляем из списка исполняемых скриптов (требует writeLock)
+                collectionLock.writeLock().lock();
+                try {
+                    executingScripts.remove(canonicalPath);
+                } finally {
+                    collectionLock.writeLock().unlock();
+                }
             }
         }
     }
 
-    private String processScriptCommand(Console.CommandInput input, int lineNumber) {
+    private String processScriptCommand(Console.CommandInput input, int lineNumber, User user) {
         try {
             Command command = commands.get(input.command);
             if (command == null) {
@@ -549,14 +570,15 @@ public class Executor {
                         return "Line " + lineNumber + ": Error: Band name cannot be empty";
                     }
 
+                    // Передаем пользователя в команды
                     if (command instanceof Insert) {
-                        return ((Insert) command).executeWithMusicBand(band);
+                        return ((Insert) command).executeWithMusicBand(band, user);
                     } else if (command instanceof Update) {
-                        return ((Update) command).executeWithMusicBand(band);
+                        return ((Update) command).executeWithMusicBand(band, user);
                     } else if (command instanceof Remove_lower) {
-                        return ((Remove_lower) command).executeWithMusicBand(band);
+                        return ((Remove_lower) command).executeWithMusicBand(band, user);
                     } else if (command instanceof Replace_if_lower) {
-                        return ((Replace_if_lower) command).executeWithMusicBand(band);
+                        return ((Replace_if_lower) command).executeWithMusicBand(band, user);
                     }
 
                 } catch (IOException e) {
@@ -564,6 +586,11 @@ public class Executor {
                 } catch (IllegalArgumentException e) {
                     return "Line " + lineNumber + ": Error in MusicBand data: " + e.getMessage();
                 }
+            }
+
+            // Для команд без MusicBand также передаем пользователя
+            if (command instanceof CommandWithUser) {
+                return ((CommandWithUser) command).execute(user);
             }
 
             return command.execute();
