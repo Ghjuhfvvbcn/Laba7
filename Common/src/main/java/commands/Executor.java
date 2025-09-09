@@ -544,9 +544,13 @@ public class Executor {
                 return "Line " + lineNumber + ": Unknown command: " + input.command;
             }
 
+            // Проверяем аутентификацию для команд, требующих пользователя
+            if (command.requiresUser() && user == null) {
+                return "Line " + lineNumber + ": Error: Authentication required for command '" + input.command + "'";
+            }
+
             if (command instanceof CommandWithArgument) {
                 CommandWithArgument<?> cmdWithArg = (CommandWithArgument<?>) command;
-
                 try {
                     cmdWithArg.setArgument(input.argument);
                 } catch (IllegalArgumentException e) {
@@ -570,15 +574,9 @@ public class Executor {
                         return "Line " + lineNumber + ": Error: Band name cannot be empty";
                     }
 
-                    // Передаем пользователя в команды
-                    if (command instanceof Insert) {
-                        return ((Insert) command).executeWithMusicBand(band, user);
-                    } else if (command instanceof Update) {
-                        return ((Update) command).executeWithMusicBand(band, user);
-                    } else if (command instanceof Remove_lower) {
-                        return ((Remove_lower) command).executeWithMusicBand(band, user);
-                    } else if (command instanceof Replace_if_lower) {
-                        return ((Replace_if_lower) command).executeWithMusicBand(band, user);
+                    // Используем CommandWithUser для команд с MusicBand
+                    if (command instanceof CommandWithUser) {
+                        return ((CommandWithUser) command).executeWithMusicBand(band, user);
                     }
 
                 } catch (IOException e) {
@@ -588,11 +586,12 @@ public class Executor {
                 }
             }
 
-            // Для команд без MusicBand также передаем пользователя
+            // Для команд без MusicBand, но требующих пользователя
             if (command instanceof CommandWithUser) {
                 return ((CommandWithUser) command).execute(user);
             }
 
+            // Для команд, не требующих пользователя
             return command.execute();
 
         } catch (Exception e) {
