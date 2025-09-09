@@ -191,7 +191,7 @@ public class Executor {
 
             // Проверяем, принадлежит ли элемент пользователю (если нужно)
             MusicBand band = musicBands.get(key);
-            if (band.getOwnerId() != user.getId() && !user.isAdmin()) {
+            if (band.getOwnerId() != user.getId()) {
                 return "Error: You don't have permission to remove this band";
             }
 

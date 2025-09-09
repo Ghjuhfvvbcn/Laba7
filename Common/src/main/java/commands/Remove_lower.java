@@ -3,7 +3,7 @@ package commands;
 import data.MusicBand;
 import data.User;
 
-public class Remove_lower implements CommandWithUser {
+public class Remove_lower implements Command, CommandWithUser {
     private final String commandName = "remove_lower";
     private final Executor executor;
 
