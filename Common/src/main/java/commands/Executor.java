@@ -141,32 +141,42 @@ public class Executor {
     }
 
     public String print_ascending() {
-        if (musicBands == null) {
-            return "The collection is 'null'";
-        } else if (musicBands.isEmpty()) {
-            return "The collection is empty";
-        } else {
-            String bandsString = musicBands.values().stream()
-                    .sorted()
-                    .map(MusicBand::toString)
-                    .collect(Collectors.joining("\n"));
+        collectionLock.readLock().lock();
+        try {
+            if (musicBands == null) {
+                return "The collection is 'null'";
+            } else if (musicBands.isEmpty()) {
+                return "The collection is empty";
+            } else {
+                String bandsString = musicBands.values().stream()
+                        .sorted()
+                        .map(MusicBand::toString)
+                        .collect(Collectors.joining("\n"));
 
-            return "Collection elements in ascending order (by 'name'):\n" + bandsString;
+                return "Collection elements in ascending order (by 'name'):\n" + bandsString;
+            }
+        } finally {
+            collectionLock.readLock().unlock();
         }
     }
 
     public String print_descending() {
-        if (musicBands == null) {
-            return "The collection is 'null'";
-        } else if (musicBands.isEmpty()) {
-            return "The collection is empty";
-        } else {
-            String bandsString = musicBands.values().stream()
-                    .sorted(Comparator.reverseOrder())
-                    .map(MusicBand::toString)
-                    .collect(Collectors.joining("\n"));
+        collectionLock.readLock().lock();
+        try {
+            if (musicBands == null) {
+                return "The collection is 'null'";
+            } else if (musicBands.isEmpty()) {
+                return "The collection is empty";
+            } else {
+                String bandsString = musicBands.values().stream()
+                        .sorted(Comparator.reverseOrder())
+                        .map(MusicBand::toString)
+                        .collect(Collectors.joining("\n"));
 
-            return "Collection elements in descending order (by 'name'):\n" + bandsString;
+                return "Collection elements in descending order (by 'name'):\n" + bandsString;
+            }
+        } finally {
+            collectionLock.readLock().unlock();
         }
     }
 
