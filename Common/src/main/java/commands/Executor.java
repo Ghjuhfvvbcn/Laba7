@@ -1,15 +1,18 @@
 package commands;
 
 import data.MusicBand;
+import data.User;
 import utils.*;
 import commands.commandsWithArgument.*;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.sql.SQLException;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 import static data.MusicBand.compareByDateAndName;
@@ -18,15 +21,24 @@ public class Executor {
     private TreeMap<Long, MusicBand> musicBands;
     private final Map<String, Command> commands;
     private final ZonedDateTime initializationDate;
-    private final File file_csv;
     private Console consoleScript;
     private final Stack<FileInputStream> scriptStack = new Stack<>();
     private final Set<String> executingScripts = new HashSet<>();
 
+    private final DatabaseManager dbManager; // <-- НОВОЕ
+    private final ReentrantReadWriteLock collectionLock = new ReentrantReadWriteLock(); // <-- НОВОЕ
 
-    public Executor(File file_csv){
-        this.file_csv = file_csv;
-        musicBands = ReaderCSV.loadFromFile(file_csv);
+
+
+
+    public Executor(DatabaseManager dbManager){
+        this.dbManager = dbManager;
+        try {
+            this.musicBands = dbManager.loadCollection(); // Загружаем из БД, а не из файла!
+        } catch (SQLException e) {
+            System.err.println("Failed to load collection from DB: " + e.getMessage());
+            this.musicBands = new TreeMap<>();
+        }
         initializationDate = ZonedDateTime.now();
         commands = CommandMap.createMapWithCommands(this);
     }
@@ -50,37 +62,47 @@ public class Executor {
     }
 
     public String info() {
-        if (musicBands == null) {
-            return "The collection is 'null'";
-        } else if (!musicBands.isEmpty()) {
-            return String.format("Type: TreeMap<Long, MusicBand>\n" +
-                            "Initialization date: %s\n" +
-                            "Size of collection: %d\n" +
-                            "First key: %d\n" +
-                            "Last key: %d",
-                    initializationDate.format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH-mm-ss z")),
-                    musicBands.size(),
-                    musicBands.firstKey(),
-                    musicBands.lastKey());
-        } else {
-            return String.format("Type: TreeMap<Long, MusicBand>\n" +
-                            "Initialization date: %s\n" +
-                            "Size of collection: 0",
-                    initializationDate.format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH-mm-ss z")));
+        collectionLock.readLock().lock();
+        try {
+            if (musicBands == null) {
+                return "The collection is 'null'" ;
+            } else if (!musicBands.isEmpty()) {
+                return String.format("Type: TreeMap<Long, MusicBand>\n" +
+                                "Initialization date: %s\n" +
+                                "Size of collection: %d\n" +
+                                "First key: %d\n" +
+                                "Last key: %d",
+                        initializationDate.format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH-mm-ss z")),
+                        musicBands.size(),
+                        musicBands.firstKey(),
+                        musicBands.lastKey());
+            } else {
+                return String.format("Type: TreeMap<Long, MusicBand>\n" +
+                                "Initialization date: %s\n" +
+                                "Size of collection: 0",
+                        initializationDate.format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH-mm-ss z")));
+            }
+        }finally {
+            collectionLock.readLock().unlock();
         }
     }
 
     public String show() {
-        if (musicBands == null) {
-            return "The collection is 'null'";
-        } else if (!musicBands.isEmpty()) {
-            String bandsString = musicBands.values().stream()
-                    .map(MusicBand::toString)
-                    .collect(Collectors.joining("\n"));
+        collectionLock.readLock().lock();
+        try {
+            if (musicBands == null) {
+                return "The collection is 'null'" ;
+            } else if (!musicBands.isEmpty()) {
+                String bandsString = musicBands.values().stream()
+                        .map(MusicBand::toString)
+                        .collect(Collectors.joining("\n"));
 
-            return "The collection contains " + musicBands.size() + " items:\n" + bandsString;
-        } else {
-            return "The collection is empty";
+                return "The collection contains " + musicBands.size() + " items:\n" + bandsString;
+            } else {
+                return "The collection is empty" ;
+            }
+        }finally {
+            collectionLock.readLock().unlock();
         }
     }
 
@@ -130,11 +152,35 @@ public class Executor {
         }
     }
 
-    public String remove_key(Long key) {
-        boolean removed = musicBands.entrySet().removeIf(entry -> entry.getKey().equals(key));
-        return removed ?
-                "The item with the key " + key + " has been successfully deleted" :
-                "The element with the key " + key + " was not found";
+    public String remove_key(Long key, User user) {
+        if (user == null) return "Error: Authentication required";
+
+        collectionLock.writeLock().lock();
+        try {
+            if (!musicBands.containsKey(key)) {
+                return "No music band found with key: " + key;
+            }
+
+            // Проверяем, принадлежит ли элемент пользователю (если нужно)
+            MusicBand band = musicBands.get(key);
+            if (band.getOwnerId() != user.getId() && !user.isAdmin()) {
+                return "Error: You don't have permission to remove this band";
+            }
+
+            // Удаляем из БД
+            boolean success = dbManager.removeMusicBand(key, user.getId());
+            if (success) {
+                // Только после успеха в БД удаляем из памяти
+                musicBands.remove(key);
+                return "Music band removed successfully.";
+            } else {
+                return "Failed to remove music band from database.";
+            }
+        } catch (SQLException e) {
+            return "Database error during removal: " + e.getMessage();
+        } finally {
+            collectionLock.writeLock().unlock();
+        }
     }
 
     public String remove_lower_key(Long key) {
@@ -158,14 +204,28 @@ public class Executor {
                 bandsString;
     }
 
-    public String insert(Long key, MusicBand band){
-        if (musicBands.containsKey(key)) {
-            return "The collection already contain the key: " + key;
-        } else {
-            band.setId(key);
-            musicBands.put(key, band);
-            saveCollection();
-            return "Music band inserted successfully.";
+    public String insert(Long key, MusicBand band, User user) { // Добавили аргумент User
+        if (user == null) return "Error: Authentication required";
+
+        collectionLock.writeLock().lock();
+        try {
+            if (musicBands.containsKey(key)) {
+                return "The collection already contains the key: " + key;
+            }
+            // Пытаемся вставить в БД
+            boolean success = dbManager.insertMusicBand(key, band, user.getId());
+            if (success) {
+                // Только после успеха в БД добавляем в память
+                band.setId(key);
+                musicBands.put(key, band);
+                return "Music band inserted successfully.";
+            } else {
+                return "Failed to insert music band into database.";
+            }
+        } catch (SQLException e) {
+            return "Database error during insert: " + e.getMessage();
+        } finally {
+            collectionLock.writeLock().unlock();
         }
     }
 
@@ -347,12 +407,13 @@ public class Executor {
     }
 
     public String saveCollection() {
-        try {
-            WriterCSV.loadToFile(file_csv, musicBands);
-            return "The collection was successfully saved to the file '" + file_csv + "'";
-        } catch (IOException e) {
-            return "Error saving collection: " + e.getMessage();
-        }
+//        try {
+//            WriterCSV.loadToFile(file_csv, musicBands);
+//            return "The collection was successfully saved to the file '" + file_csv + "'";
+//        } catch (IOException e) {
+//            return "Error saving collection: " + e.getMessage();
+//        }
+        return null;
     }
 
     public int getSizeOfCollection(){

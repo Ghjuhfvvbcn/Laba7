@@ -4,6 +4,7 @@ import commands.*;
 import commands.commandsWithArgument.*;
 import data.CommandWrapper;
 import utils.CommandMap;
+import utils.DatabaseManager;
 
 import java.io.*;
 import java.net.DatagramPacket;
@@ -45,7 +46,7 @@ public class ServerMain {
             return;
         }
 
-        executor = new Executor(file_csv);
+        executor = new Executor();
         commands = CommandMap.createMapWithCommands(executor);
 
         System.out.println("Server started. Loaded " + executor.getSizeOfCollection() + " music bands.");

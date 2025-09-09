@@ -1,4 +1,4 @@
-package org.example;
+package utils;
 
 import data.*;
 
@@ -130,7 +130,7 @@ public class DatabaseManager {
         }
     }
 
-    public boolean deleteMusicBand(Long key, int userId) throws SQLException {
+    public boolean removeMusicBand(Long key, int userId) throws SQLException {
         if (!checkOwnership(key, userId)) {
             return false;
         }
