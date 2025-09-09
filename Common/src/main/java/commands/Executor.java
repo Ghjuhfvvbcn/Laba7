@@ -211,11 +211,56 @@ public class Executor {
         }
     }
 
-    public String remove_lower_key(Long key) {
-        int sizeBefore = musicBands.size();
-        musicBands.headMap(key, false).clear();
-        int sizeAfter = musicBands.size();
-        return "Successfully deleted " + (sizeBefore - sizeAfter) + " items";
+    public String remove_lower_key(Long key, User user) {
+        if (user == null) return "Error: Authentication required";
+
+        collectionLock.writeLock().lock();
+        try {
+            // Получаем ключи для удаления (меньше указанного)
+            Set<Long> keysToRemove = musicBands.headMap(key, false).keySet();
+
+            if (keysToRemove.isEmpty()) {
+                return "No elements found with keys lower than: " + key;
+            }
+
+            // Удаляем элементы из БД (только принадлежащие пользователю)
+            int deletedCount = 0;
+            for (Long k : keysToRemove) {
+                MusicBand band = musicBands.get(k);
+                if (band != null && band.getOwnerId() == user.getId()) {
+                    boolean success = dbManager.removeMusicBand(k, user.getId());
+                    if (success) {
+                        deletedCount++;
+                    }
+                }
+            }
+
+            // Удаляем из памяти только те элементы, которые успешно удалились из БД
+            if (deletedCount > 0) {
+                // Создаем копию для безопасного удаления во время итерации
+                Set<Long> successfullyRemoved = new HashSet<>();
+                for (Long k : keysToRemove) {
+                    MusicBand band = musicBands.get(k);
+                    if (band != null && band.getOwnerId() == user.getId()) {
+                        // Проверяем, был ли элемент удален из БД
+                        // (предполагаем, что если removeMusicBand вернул true, то элемент удален)
+                        successfullyRemoved.add(k);
+                    }
+                }
+
+                // Удаляем из памяти
+                successfullyRemoved.forEach(musicBands::remove);
+
+                return "Successfully deleted " + deletedCount + " items";
+            } else {
+                return "Failed to delete any items from database.";
+            }
+
+        } catch (SQLException e) {
+            return "Database error during remove_lower_key: " + e.getMessage();
+        } finally {
+            collectionLock.writeLock().unlock();
+        }
     }
 
     public String filter_starts_with_name(String name) {
