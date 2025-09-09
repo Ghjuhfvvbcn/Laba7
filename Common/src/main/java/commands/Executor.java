@@ -344,18 +344,57 @@ public class Executor {
         }
     }
 
-    public String remove_lower(MusicBand band) {
-        if (musicBands.isEmpty()) {
-            return "The collection is empty";
+    public String remove_lower(MusicBand band, User user) {
+        if (user == null) return "Error: Authentication required";
+
+        collectionLock.writeLock().lock();
+        try {
+            if (musicBands.isEmpty()) {
+                return "The collection is empty";
+            }
+
+            // Получаем элементы для удаления (только принадлежащие пользователю)
+            List<Long> keysToRemove = musicBands.entrySet().stream()
+                    .filter(entry -> {
+                        MusicBand currentBand = entry.getValue();
+                        return currentBand.getOwnerId() == user.getId() &&
+                                compareByDateAndName.compare(currentBand, band) > 0;
+                    })
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+
+            if (keysToRemove.isEmpty()) {
+                return "No elements found to remove for this user";
+            }
+
+            // Удаляем элементы из БД
+            int deletedCount = 0;
+            for (Long key : keysToRemove) {
+                boolean success = dbManager.removeMusicBand(key, user.getId());
+                if (success) {
+                    deletedCount++;
+                }
+            }
+
+            // Удаляем из памяти только успешно удаленные из БД элементы
+            if (deletedCount > 0) {
+                for (Long key : keysToRemove) {
+                    // Проверяем, что элемент еще существует и принадлежит пользователю
+                    MusicBand existingBand = musicBands.get(key);
+                    if (existingBand != null && existingBand.getOwnerId() == user.getId()) {
+                        musicBands.remove(key);
+                    }
+                }
+                return deletedCount + " bands were successfully removed";
+            } else {
+                return "Failed to remove any bands from database.";
+            }
+
+        } catch (SQLException e) {
+            return "Database error during remove_lower: " + e.getMessage();
+        } finally {
+            collectionLock.writeLock().unlock();
         }
-
-        long countBefore = musicBands.size();
-        musicBands.values().removeIf(musicBand ->
-                compareByDateAndName.compare(musicBand, band) > 0);
-        long countAfter = musicBands.size();
-
-        saveCollection();
-        return (countBefore - countAfter) + " bands were successfully removed";
     }
 
     public String replace_if_lower(Long key, MusicBand newBand) {
