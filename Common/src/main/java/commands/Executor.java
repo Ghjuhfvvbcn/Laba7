@@ -311,14 +311,36 @@ public class Executor {
         }
     }
 
-    public String update(Long id, MusicBand band) {
-        if (!musicBands.containsKey(id)) {
-            return "The collection doesn't contain the key " + id;
-        } else {
-            band.setId(id);
-            musicBands.put(id, band);
-            saveCollection();
-            return "Music band updated successfully.";
+    public String update(Long id, MusicBand band, User user) {
+        if (user == null) return "Error: Authentication required";
+
+        collectionLock.writeLock().lock();
+        try {
+            if (!musicBands.containsKey(id)) {
+                return "The collection doesn't contain the key " + id;
+            }
+
+            // Проверяем, принадлежит ли элемент пользователю
+            MusicBand existingBand = musicBands.get(id);
+            if (existingBand.getOwnerId() != user.getId()) {
+                return "Error: You don't have permission to update this band";
+            }
+
+            // Обновляем в БД
+            boolean success = dbManager.updateMusicBand(id, band, user.getId());
+            if (success) {
+                // Только после успеха в БД обновляем в памяти
+                band.setId(id);
+                band.setOwnerId(user.getId()); // Сохраняем владельца
+                musicBands.put(id, band);
+                return "Music band updated successfully.";
+            } else {
+                return "Failed to update music band in database.";
+            }
+        } catch (SQLException e) {
+            return "Database error during update: " + e.getMessage();
+        } finally {
+            collectionLock.writeLock().unlock();
         }
     }
 
