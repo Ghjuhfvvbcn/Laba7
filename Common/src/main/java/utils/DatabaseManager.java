@@ -67,33 +67,102 @@ public class DatabaseManager {
     }
 
     // 3. Метод для добавления нового MusicBand в БД
+//    public boolean insertMusicBand(Long key, MusicBand band, int ownerId) throws SQLException {
+//        // Вам нужно будет сначала получить или вставить studio
+//        Integer studioId = null;
+//        if (band.getStudio() != null && band.getStudio().getName() != null) {
+//            studioId = getOrInsertStudio(band.getStudio().getName());
+//        }
+//
+//        String sql = "INSERT INTO music_bands (id, owner_id, name, coordinate_x, coordinate_y, creation_date, number_of_participants, description, genre, studio_id) " +
+//                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::music_genre, ?)"; // Обратите внимание на приведение типа ::music_genre
+//
+//        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+//            stmt.setLong(1, key); // Используем предоставленный ключ как ID
+//            stmt.setInt(2, ownerId);
+//            stmt.setString(3, band.getName());
+//            stmt.setDouble(4, band.getCoordinates().getX());
+//            stmt.setInt(5, band.getCoordinates().getY());
+//            stmt.setTimestamp(6, Timestamp.from(band.getCreationDate().toInstant()));
+//            stmt.setInt(7, band.getNumberOfParticipants());
+//            stmt.setString(8, band.getDescription());
+//            stmt.setString(9, band.getGenre().name()); // Сохраняем имя enum
+//            stmt.setObject(10, studioId, Types.INTEGER); // Может быть null
+//
+//            int affectedRows = stmt.executeUpdate();
+//            return affectedRows > 0;
+//        }
+//    }
+
     public boolean insertMusicBand(Long key, MusicBand band, int ownerId) throws SQLException {
-        // Вам нужно будет сначала получить или вставить studio
         Integer studioId = null;
         if (band.getStudio() != null && band.getStudio().getName() != null) {
             studioId = getOrInsertStudio(band.getStudio().getName());
         }
 
-        String sql = "INSERT INTO music_bands (id, owner_id, name, coordinate_x, coordinate_y, creation_date, number_of_participants, description, genre, studio_id) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::music_genre, ?)"; // Обратите внимание на приведение типа ::music_genre
+        // Используем sequence для генерации id, но сохраняем переданный key как отдельное поле
+        String sql = "INSERT INTO music_bands (id, owner_id, name, coordinate_x, coordinate_y, " +
+                "creation_date, number_of_participants, description, genre, studio_id, collection_key) " +
+                "VALUES (DEFAULT, ?, ?, ?, ?, ?, ?, ?, ?::music_genre, ?, ?) RETURNING id";
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setLong(1, key); // Используем предоставленный ключ как ID
-            stmt.setInt(2, ownerId);
-            stmt.setString(3, band.getName());
-            stmt.setDouble(4, band.getCoordinates().getX());
-            stmt.setInt(5, band.getCoordinates().getY());
-            stmt.setTimestamp(6, Timestamp.from(band.getCreationDate().toInstant()));
-            stmt.setInt(7, band.getNumberOfParticipants());
-            stmt.setString(8, band.getDescription());
-            stmt.setString(9, band.getGenre().name()); // Сохраняем имя enum
-            stmt.setObject(10, studioId, Types.INTEGER); // Может быть null
+            stmt.setInt(1, ownerId);
+            stmt.setString(2, band.getName());
+            stmt.setDouble(3, band.getCoordinates().getX());
+            stmt.setInt(4, band.getCoordinates().getY());
+            stmt.setTimestamp(5, Timestamp.from(band.getCreationDate().toInstant()));
+            stmt.setInt(6, band.getNumberOfParticipants());
+            stmt.setString(7, band.getDescription());
+            stmt.setString(8, band.getGenre().name());
+            stmt.setObject(9, studioId, Types.INTEGER);
+            stmt.setLong(10, key); // Сохраняем ключ коллекции в отдельном поле
 
-            int affectedRows = stmt.executeUpdate();
-            return affectedRows > 0;
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    Long generatedId = rs.getLong("id");
+                    band.setId(generatedId); // Устанавливаем сгенерированный ID в объект
+                    return true;
+                }
+            }
         }
+        return false;
     }
 
+//    public boolean updateMusicBand(Long key, MusicBand band, int ownerId) throws SQLException {
+//        if (!checkOwnership(key, ownerId)) {
+//            return false;
+//        }
+//
+//        Integer studioId = null;
+//        if (band.getStudio() != null && band.getStudio().getName() != null) {
+//            studioId = getOrInsertStudio(band.getStudio().getName());
+//        }
+//
+//        String sql = "UPDATE music_bands SET name = ?, coordinate_x = ?, coordinate_y = ?, " +
+//                "number_of_participants = ?, description = ?, genre = ?::music_genre, " +
+//                "studio_id = ? WHERE id = ? AND owner_id = ?";
+//
+//        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+//            stmt.setString(1, band.getName());
+//            stmt.setDouble(2, band.getCoordinates().getX());
+//            stmt.setInt(3, band.getCoordinates().getY());
+//            stmt.setInt(4, band.getNumberOfParticipants());
+//            stmt.setString(5, band.getDescription());
+//            stmt.setString(6, band.getGenre().name());
+//
+//            if (studioId != null) {
+//                stmt.setInt(7, studioId);
+//            } else {
+//                stmt.setNull(7, Types.INTEGER);
+//            }
+//
+//            stmt.setLong(8, key);
+//            stmt.setInt(9, ownerId);
+//
+//            int affectedRows = stmt.executeUpdate();
+//            return affectedRows > 0;
+//        }
+//    }
     public boolean updateMusicBand(Long key, MusicBand band, int ownerId) throws SQLException {
         if (!checkOwnership(key, ownerId)) {
             return false;
@@ -104,9 +173,10 @@ public class DatabaseManager {
             studioId = getOrInsertStudio(band.getStudio().getName());
         }
 
+        // МЕНЯЕМ SQL ЗАПРОС: используем collection_key вместо id
         String sql = "UPDATE music_bands SET name = ?, coordinate_x = ?, coordinate_y = ?, " +
                 "number_of_participants = ?, description = ?, genre = ?::music_genre, " +
-                "studio_id = ? WHERE id = ? AND owner_id = ?";
+                "studio_id = ? WHERE collection_key = ? AND owner_id = ?"; // ← ИЗМЕНИЛИ id на collection_key
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, band.getName());
@@ -122,7 +192,7 @@ public class DatabaseManager {
                 stmt.setNull(7, Types.INTEGER);
             }
 
-            stmt.setLong(8, key);
+            stmt.setLong(8, key); // collection_key = пользовательский ключ
             stmt.setInt(9, ownerId);
 
             int affectedRows = stmt.executeUpdate();
@@ -130,14 +200,28 @@ public class DatabaseManager {
         }
     }
 
+//    public boolean removeMusicBand(Long key, int userId) throws SQLException {
+//        if (!checkOwnership(key, userId)) {
+//            return false;
+//        }
+//
+//        String sql = "DELETE FROM music_bands WHERE id = ? AND owner_id = ?";
+//        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+//            stmt.setLong(1, key);
+//            stmt.setInt(2, userId);
+//            int affectedRows = stmt.executeUpdate();
+//            return affectedRows > 0;
+//        }
+//    }
     public boolean removeMusicBand(Long key, int userId) throws SQLException {
         if (!checkOwnership(key, userId)) {
             return false;
         }
 
-        String sql = "DELETE FROM music_bands WHERE id = ? AND owner_id = ?";
+        // МЕНЯЕМ: используем collection_key вместо id
+        String sql = "DELETE FROM music_bands WHERE collection_key = ? AND owner_id = ?";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setLong(1, key);
+            stmt.setLong(1, key); // collection_key
             stmt.setInt(2, userId);
             int affectedRows = stmt.executeUpdate();
             return affectedRows > 0;
@@ -187,6 +271,34 @@ public class DatabaseManager {
     }
 
     // 4. Метод для загрузки всей коллекции из БД при старте сервера
+//    public TreeMap<Long, MusicBand> loadCollection() throws SQLException {
+//        TreeMap<Long, MusicBand> collection = new TreeMap<>();
+//        String sql = "SELECT mb.*, s.name as studio_name FROM music_bands mb " +
+//                "LEFT JOIN studios s ON mb.studio_id = s.id";
+//
+//        try (PreparedStatement stmt = connection.prepareStatement(sql);
+//             ResultSet rs = stmt.executeQuery()) {
+//
+//            while (rs.next()) {
+//                Long id = rs.getLong("id");
+//                int ownerId = rs.getInt("owner_id"); // Получаем owner_id
+//                MusicBand band = new MusicBand(
+//                        id,
+//                        rs.getString("name"),
+//                        new Coordinates(rs.getDouble("coordinate_x"), rs.getInt("coordinate_y")),
+//                        rs.getTimestamp("creation_date").toInstant().atZone(ZoneId.systemDefault()),
+//                        rs.getInt("number_of_participants"),
+//                        rs.getString("description"),
+//                        MusicGenre.valueOf(rs.getString("genre")),
+//                        rs.getString("studio_name") != null ?
+//                                new Studio(rs.getString("studio_name")) : null,
+//                        ownerId // Передаем owner_id в конструктор
+//                );
+//                collection.put(id, band);
+//            }
+//        }
+//        return collection;
+//    }
     public TreeMap<Long, MusicBand> loadCollection() throws SQLException {
         TreeMap<Long, MusicBand> collection = new TreeMap<>();
         String sql = "SELECT mb.*, s.name as studio_name FROM music_bands mb " +
@@ -196,10 +308,11 @@ public class DatabaseManager {
              ResultSet rs = stmt.executeQuery()) {
 
             while (rs.next()) {
-                Long id = rs.getLong("id");
-                int ownerId = rs.getInt("owner_id"); // Получаем owner_id
+                Long collectionKey = rs.getLong("collection_key"); // Ключ для коллекции
+                Long id = rs.getLong("id"); // Сгенерированный ID объекта
+
                 MusicBand band = new MusicBand(
-                        id,
+                        id, // Передаем сгенерированный ID
                         rs.getString("name"),
                         new Coordinates(rs.getDouble("coordinate_x"), rs.getInt("coordinate_y")),
                         rs.getTimestamp("creation_date").toInstant().atZone(ZoneId.systemDefault()),
@@ -208,20 +321,31 @@ public class DatabaseManager {
                         MusicGenre.valueOf(rs.getString("genre")),
                         rs.getString("studio_name") != null ?
                                 new Studio(rs.getString("studio_name")) : null,
-                        ownerId // Передаем owner_id в конструктор
+                        rs.getInt("owner_id")
                 );
-                collection.put(id, band);
+
+                collection.put(collectionKey, band); // Используем collection_key как ключ
             }
         }
         return collection;
     }
 
     // 5. Методы update, delete, checkOwnership и т.д.
-    public boolean checkOwnership(long bandId, int userId) throws SQLException {
-        String sql = "SELECT owner_id FROM music_bands WHERE id = ?";
+//    public boolean checkOwnership(long bandId, int userId) throws SQLException {
+//        String sql = "SELECT owner_id FROM music_bands WHERE id = ?";
+//        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+//            stmt.setLong(1, bandId);
+//            try (ResultSet rs = stmt.executeQuery()) { // ← ДОБАВЛЕНО try-with-resources!
+//                return rs.next() && rs.getInt("owner_id") == userId;
+//            }
+//        }
+//    }
+    public boolean checkOwnership(long collectionKey, int userId) throws SQLException {
+        // МЕНЯЕМ: проверяем по collection_key вместо id
+        String sql = "SELECT owner_id FROM music_bands WHERE collection_key = ?";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-            stmt.setLong(1, bandId);
-            try (ResultSet rs = stmt.executeQuery()) { // ← ДОБАВЛЕНО try-with-resources!
+            stmt.setLong(1, collectionKey);
+            try (ResultSet rs = stmt.executeQuery()) {
                 return rs.next() && rs.getInt("owner_id") == userId;
             }
         }
@@ -244,7 +368,8 @@ public class DatabaseManager {
 // Создаем индексы для улучшения производительности
         String createIndexesSQL =
                 "CREATE INDEX IF NOT EXISTS idx_music_bands_owner_id ON music_bands(owner_id);" +
-                        "CREATE INDEX IF NOT EXISTS idx_music_bands_creation_date ON music_bands(creation_date);";
+                        "CREATE INDEX IF NOT EXISTS idx_music_bands_creation_date ON music_bands(creation_date);" +
+                        "CREATE INDEX IF NOT EXISTS idx_music_bands_collection_key ON music_bands(collection_key);"; // ← ДОБАВЛЕНО;
 
         String createUsersTableSQL =
             "CREATE TABLE IF NOT EXISTS users (" +
@@ -274,7 +399,8 @@ public class DatabaseManager {
                 "description TEXT," +
 //                "genre VARCHAR(50) NOT NULL CHECK (genre IN ('ROCK', 'PSYCHEDELIC_CLOUD_RAP', 'JAZZ', 'SOUL', 'POST_ROCK'))," +
                 "genre music_genre NOT NULL," + // ← ИЗМЕНЕНО: используем тип enum
-                "studio_id INTEGER REFERENCES studios(id) ON DELETE SET NULL" +
+                "studio_id INTEGER REFERENCES studios(id) ON DELETE SET NULL," +
+                "collection_key BIGINT NOT NULL UNIQUE" + // ← НОВОЕ ПОЛЕ ДЛЯ КЛЮЧА КОЛЛЕКЦИИ
             ");" ;
 
         // Выполняем все SQL-запросы по очереди.
@@ -326,8 +452,40 @@ public class DatabaseManager {
         }
     }
 
+//    public TreeMap<Long, MusicBand> loadUserCollection(int userId) throws SQLException {
+//        TreeMap<Long, MusicBand> userCollection = new TreeMap<>();
+//        String sql = "SELECT mb.*, s.name as studio_name FROM music_bands mb " +
+//                "LEFT JOIN studios s ON mb.studio_id = s.id " +
+//                "WHERE mb.owner_id = ?";
+//
+//        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+//            stmt.setInt(1, userId);
+//            try (ResultSet rs = stmt.executeQuery()) {
+//                while (rs.next()) {
+//                    Long id = rs.getLong("id");
+//                    int ownerId = rs.getInt("owner_id");
+//
+//                    MusicBand band = new MusicBand(
+//                            id,
+//                            rs.getString("name"),
+//                            new Coordinates(rs.getDouble("coordinate_x"), rs.getInt("coordinate_y")),
+//                            rs.getTimestamp("creation_date").toInstant().atZone(ZoneId.systemDefault()),
+//                            rs.getInt("number_of_participants"),
+//                            rs.getString("description"),
+//                            MusicGenre.valueOf(rs.getString("genre")),
+//                            rs.getString("studio_name") != null ?
+//                                    new Studio(rs.getString("studio_name")) : null,
+//                            ownerId
+//                    );
+//                    userCollection.put(id, band);
+//                }
+//            }
+//        }
+//        return userCollection;
+//    }
     public TreeMap<Long, MusicBand> loadUserCollection(int userId) throws SQLException {
         TreeMap<Long, MusicBand> userCollection = new TreeMap<>();
+        // ДОБАВЛЯЕМ collection_key в SELECT
         String sql = "SELECT mb.*, s.name as studio_name FROM music_bands mb " +
                 "LEFT JOIN studios s ON mb.studio_id = s.id " +
                 "WHERE mb.owner_id = ?";
@@ -336,6 +494,7 @@ public class DatabaseManager {
             stmt.setInt(1, userId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
+                    Long collectionKey = rs.getLong("collection_key"); // ← ДОБАВЛЕНО
                     Long id = rs.getLong("id");
                     int ownerId = rs.getInt("owner_id");
 
@@ -351,7 +510,7 @@ public class DatabaseManager {
                                     new Studio(rs.getString("studio_name")) : null,
                             ownerId
                     );
-                    userCollection.put(id, band);
+                    userCollection.put(collectionKey, band); // ← ИСПРАВЛЕНО: используем collection_key
                 }
             }
         }
