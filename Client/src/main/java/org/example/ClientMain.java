@@ -8,6 +8,8 @@ import java.io.*;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 
 public class ClientMain {
@@ -15,7 +17,16 @@ public class ClientMain {
     private static String SERVER_HOST = "localhost";
     private static int SERVER_PORT = 12345;
 
+    // Новые поля для хранения учетных данных
+    private static String userLogin;
+    private static String userPasswordHash;
+
     public static void main( String[] args ) {
+        if (!authenticateUser()) {
+            System.out.println("Authentication failed. Shutting down...");
+            return;
+        }
+
         System.out.println("Client started. Type 'help' for available commands.");
 
         Console console = new Console();
@@ -77,6 +88,125 @@ public class ClientMain {
         }
 
     }
+
+    private static String hashPassword(String password) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-512");
+            byte[] hash = digest.digest(password.getBytes());
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException("SHA-512 algorithm not available", e);
+        }
+    }
+
+
+    private static boolean authenticateUser() {
+        Console console = new Console();
+
+        System.out.println("=== Authentication ===");
+
+        try {
+            System.out.print("Login: ");
+            String login = console.readLine();
+            if (login == null || login.trim().isEmpty()) {
+                System.out.println("Login cannot be empty");
+                return false;
+            }
+
+            System.out.print("Password: ");
+            String password = console.readLine();
+            if (password == null || password.trim().isEmpty()) {
+                System.out.println("Password cannot be empty");
+                return false;
+            }
+
+            System.out.print("Register (r) or Login (l)? ");
+            String choice = console.readLine();
+
+            if (choice == null || (!choice.equalsIgnoreCase("r") && !choice.equalsIgnoreCase("l"))) {
+                System.out.println("Invalid choice. Use 'r' for register or 'l' for login");
+                return false;
+            }
+
+            String passwordHash = hashPassword(password);
+            String commandName = choice.equalsIgnoreCase("r") ? "register" : "login";
+
+            // Отправляем команду аутентификации
+            Object response = sendAuthCommand(commandName, login, passwordHash);
+            System.out.println(response);
+
+            if (response.toString().contains("successfully") ||
+                    response.toString().contains("successful")) {
+                userLogin = login;
+                userPasswordHash = passwordHash;
+                return true;
+            }
+            return false;
+
+        } catch (IOException e) {
+            System.err.println("Authentication error: " + e.getMessage());
+            return false;
+        }
+    }
+
+    private static Object sendAuthCommand(String commandName, String login, String passwordHash)
+            throws IOException {
+        try (DatagramChannel channel = DatagramChannel.open()) {
+            channel.configureBlocking(false);
+            channel.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT));
+
+            // Создаем CommandWrapper для аутентификации
+            CommandWrapper wrapper = new CommandWrapper();
+            wrapper.setCommandName(commandName);
+            wrapper.setLogin(login);
+            wrapper.setPasswordHash(passwordHash);
+
+            // Отправляем и получаем ответ (аналогично sendCommandToServer)
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ObjectOutputStream oos = new ObjectOutputStream(baos);
+            oos.writeObject(wrapper);
+            oos.flush();
+
+            byte[] requestData = baos.toByteArray();
+            ByteBuffer buffer = ByteBuffer.wrap(requestData);
+            channel.write(buffer);
+
+            ByteBuffer responseBuffer = ByteBuffer.allocate(65536);
+            int bytesRead;
+            int attempts = 0;
+
+            while ((bytesRead = channel.read(responseBuffer)) == 0 && attempts < 10) {
+                attempts++;
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Response wait interrupted");
+                }
+            }
+
+            if (bytesRead == 0) {
+                throw new IOException("No response from server (timeout)");
+            }
+
+            responseBuffer.flip();
+            byte[] responseData = new byte[responseBuffer.remaining()];
+            responseBuffer.get(responseData);
+
+            ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(responseData));
+            return ois.readObject();
+
+        } catch (ClassNotFoundException e) {
+            throw new IOException("Error deserializing response", e);
+        }
+    }
+
 
     private static String validateCommandInput(Console.CommandInput input) {
         switch (input.command) {
@@ -163,6 +293,10 @@ public class ClientMain {
         try {
             CommandWrapper wrapper = new CommandWrapper();
             wrapper.setCommandName(input.command);
+
+            // ДОБАВЛЯЕМ УЧЕТНЫЕ ДАННЫЕ К КАЖДОМУ ЗАПРОСУ
+            wrapper.setLogin(userLogin);
+            wrapper.setPasswordHash(userPasswordHash);
 
             switch (input.command) {
                 case "remove_lower":
