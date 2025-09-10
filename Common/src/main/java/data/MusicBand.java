@@ -21,7 +21,7 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
     // Конструктор для создания нового объекта
     public MusicBand(String name, Coordinates coordinates, int numberOfParticipants,
                      String description, MusicGenre genre, Studio studio, int ownerId) {
-        this.id = GeneratorId.generateId();
+//        this.id = GeneratorId.generateId();
         setName(name);
         setCoordinates(coordinates);
         creationDate = ZonedDateTime.now();
@@ -41,8 +41,8 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
         } else if (id <= 0) {
             throw new IllegalArgumentException("Id should be a positive number");
         } else {
-            this.id = id;
-            GeneratorId.setId(id);
+            this.id = null;
+//            GeneratorId.setId(id);
         }
         setName(name);
         setCoordinates(coordinates);

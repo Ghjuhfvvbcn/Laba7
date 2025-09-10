@@ -40,7 +40,11 @@ public class Executor {
             this.musicBands = new TreeMap<>();
         }
         initializationDate = ZonedDateTime.now();
-        commands = CommandMap.createMapWithCommands(this);
+        commands = CommandMap.createMapWithCommands(this, dbManager);
+    }
+
+    public Map<String, Command> getCommands(){
+        return commands;
     }
 
     public String help(){

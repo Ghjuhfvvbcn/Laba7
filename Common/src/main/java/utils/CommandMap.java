@@ -7,7 +7,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public class CommandMap {
-    public static Map<String, Command> createMapWithCommands(Executor executor) {
+    public static Map<String, Command> createMapWithCommands(Executor executor, DatabaseManager dbManager) {
         Map<String, Command> commands = new TreeMap<>();
 
         Help help = new Help(executor);
@@ -29,6 +29,9 @@ public class CommandMap {
 
         Execute_script execute_script = new Execute_script(executor);
 
+        RegisterCommand registerCommand = new RegisterCommand(dbManager);
+        LoginCommand loginCommand = new LoginCommand(dbManager);
+
         commands.put(help.getCommandName(), help);
         commands.put(info.getCommandName(), info);
         commands.put(show.getCommandName(), show);
@@ -47,6 +50,9 @@ public class CommandMap {
         commands.put(replace_if_lower.getCommandName(), replace_if_lower);
 
         commands.put(execute_script.getCommandName(), execute_script);
+
+        commands.put(registerCommand.getCommandName(), registerCommand);
+        commands.put(loginCommand.getCommandName(), loginCommand);
 
         return commands;
     }

@@ -3,6 +3,8 @@ package org.example;
 import commands.*;
 import commands.commandsWithArgument.*;
 import data.CommandWrapper;
+import data.MusicBand;
+import data.User;
 import utils.CommandMap;
 import utils.DatabaseManager;
 
@@ -12,10 +14,7 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.SocketException;
 import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 
 public class ServerMain {
 
@@ -46,8 +45,8 @@ public class ServerMain {
             return;
         }
 
-        executor = new Executor();
-        commands = CommandMap.createMapWithCommands(executor);
+        executor = new Executor(dbManager);
+        commands = executor.getCommands();
 
         System.out.println("Server started. Loaded " + executor.getSizeOfCollection() + " music bands.");
 
@@ -133,6 +132,22 @@ public class ServerMain {
                 return "Error: Unknown command '" + commandName + "'";
             }
 
+            // Обработка команд register и login
+            if ("register".equals(commandName) || "login".equals(commandName)) {
+                if (command instanceof RegisterCommand) {
+                    ((RegisterCommand) command).setCredentials(
+                            commandWrapper.getLogin(),
+                            commandWrapper.getPasswordHash()
+                    );
+                } else if (command instanceof LoginCommand) {
+                    ((LoginCommand) command).setCredentials(
+                            commandWrapper.getLogin(),
+                            commandWrapper.getPasswordHash()
+                    );
+                }
+                return command.execute();
+            }
+
             if (command instanceof CommandWithArgument) {
                 CommandWithArgument<?> commandWithArg = (CommandWithArgument<?>) command;
 
@@ -160,38 +175,44 @@ public class ServerMain {
                 }
             }
 
-            return executeCommand(command, commandWrapper);
+            return executeCommand(command, commandWrapper, null);
 
         } catch (Exception e) {
             return "Error processing command: " + e.getMessage();
         }
     }
 
-    private static Object executeCommand(Command command, CommandWrapper commandWrapper) {
+    private static Object executeCommand(Command command, CommandWrapper commandWrapper, User user) { // <-- ДОБАВЛЕН параметр User user
         try {
             String commandName = command.getCommandName();
 
+            // Обработка команд, требующих MusicBand
             if (commandName.equals("insert") || commandName.equals("update") || commandName.equals("replace_if_lower") || commandName.equals("remove_lower")) {
                 if (commandWrapper.getMusicBand() != null) {
                     if (command instanceof Insert) {
-                        return ((Insert) command).executeWithMusicBand(commandWrapper.getMusicBand());
+                        return ((Insert) command).executeWithMusicBand(commandWrapper.getMusicBand(), user); // <-- Передаем user
                     } else if (command instanceof Update) {
-                        return ((Update) command).executeWithMusicBand(commandWrapper.getMusicBand());
+                        return ((Update) command).executeWithMusicBand(commandWrapper.getMusicBand(), user); // <-- Передаем user
                     } else if (command instanceof Replace_if_lower) {
-                        return ((Replace_if_lower) command).executeWithMusicBand(commandWrapper.getMusicBand());
+                        return ((Replace_if_lower) command).executeWithMusicBand(commandWrapper.getMusicBand(), user); // <-- Передаем user
                     } else if (command instanceof Remove_lower) {
-                        return ((Remove_lower) command).executeWithMusicBand(commandWrapper.getMusicBand());
+                        return ((Remove_lower) command).executeWithMusicBand(commandWrapper.getMusicBand(), user); // <-- Передаем user
                     }
                 }
                 return "Error: No MusicBand data provided for command '" + commandName + "'";
             }
 
-            String res = command.execute();
-            int chunkSizeBytes = 60000;
+            // Обработка команд, требующих только пользователя (например, clear)
+            if (command instanceof CommandWithUser) {
+                return ((CommandWithUser) command).execute(user); // <-- Передаем user
+            }
 
+            // Обработка команд, не требующих ничего (info, show и т.д.)
+            String res = command.execute();
+            // ... (ваша старая логика разбивки на чанки) ...
+            int chunkSizeBytes = 60000;
             byte[] allBytes = res.getBytes(java.nio.charset.StandardCharsets.UTF_8);
             java.util.List<String> chunks = new java.util.ArrayList<>();
-
             for (int i = 0; i < allBytes.length; i += chunkSizeBytes) {
                 int end = Math.min(i + chunkSizeBytes, allBytes.length);
                 byte[] chunkBytes = new byte[end - i];
@@ -199,7 +220,6 @@ public class ServerMain {
                 String chunk = new String(chunkBytes, java.nio.charset.StandardCharsets.UTF_8);
                 chunks.add(chunk);
             }
-
             return chunks;
 
         } catch (Exception e) {

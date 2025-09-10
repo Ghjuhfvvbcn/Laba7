@@ -113,7 +113,7 @@ public class Console {
             MusicGenre genre = readMusicGenre();
             Studio studio = readStudio();
 
-            MusicBand musicBand = new MusicBand(name, coordinates, numberOfParticipants, description, genre, studio);
+            MusicBand musicBand = new MusicBand(name, coordinates, numberOfParticipants, description, genre, studio, -1);
             return musicBand;
         }catch(EOFException e){
             System.out.println("Shutting down...");
@@ -372,7 +372,7 @@ public class Console {
             Studio studio = new Studio(studioName);
 
             return new MusicBand(name.trim(), coordinates, numberOfParticipants,
-                    description.trim(), genre, studio);
+                    description.trim(), genre, studio, -1);
 
         } catch (NumberFormatException e) {
             throw new IllegalArgumentException("Invalid number format: " + e.getMessage());
