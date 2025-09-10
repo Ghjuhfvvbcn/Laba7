@@ -20,9 +20,10 @@ public class ServerMain {
 
     private static final int PORT = 12345;
     private static final int BUFFER_SIZE = 65536;
-    private static File file_csv;
     private static Map<String, Command> commands;
     private static Executor executor;
+
+    private static DatabaseManager dbManager;
 
     private static Set<String> connectedClients = new HashSet<>();
 
@@ -35,7 +36,7 @@ public class ServerMain {
         String dbPassword = "dcxOUhUo8IMFxqAD"; // Ваш пароль
 
         // 1. Подключение к БД и автоматическое создание таблиц
-        DatabaseManager dbManager;
+
         try {
             dbManager = new DatabaseManager(dbUrl, dbUser, dbPassword);
             System.out.println("hello from database");
@@ -119,6 +120,15 @@ public class ServerMain {
             System.err.println("Server socket error: " + e.getMessage());
         } catch (IOException e) {
             System.err.println("Server I/O error: " + e.getMessage());
+        } finally {
+            // Закрываем соединение с БД при завершении работы
+            if (dbManager != null) {
+                try {
+                    dbManager.close();
+                } catch (SQLException e) {
+                    System.err.println("Error closing database connection: " + e.getMessage());
+                }
+            }
         }
     }
 
@@ -128,8 +138,20 @@ public class ServerMain {
 
             Command command = commands.get(commandName);
 
+            // Команды, которые доступны без аутентификации
+            boolean isAuthCommand = "register".equals(commandName) || "login".equals(commandName);
+
             if (command == null) {
                 return "Error: Unknown command '" + commandName + "'";
+            }
+
+            // Для ВСЕХ команд, кроме register/login, проверяем аутентификацию
+            User user = null;
+            if (!isAuthCommand) {
+                user = authenticateUser(commandWrapper);
+                if (user == null) {
+                    return "Error: Authentication required. Please login first.";
+                }
             }
 
             // Обработка команд register и login
@@ -146,6 +168,10 @@ public class ServerMain {
                     );
                 }
                 return command.execute();
+            }
+
+            if (command.requiresUser() && user == null) {
+                return "Error: Authentication required for command '" + commandName + "'";
             }
 
             if (command instanceof CommandWithArgument) {
@@ -175,10 +201,23 @@ public class ServerMain {
                 }
             }
 
-            return executeCommand(command, commandWrapper, null);
+            return executeCommand(command, commandWrapper, user);
 
         } catch (Exception e) {
             return "Error processing command: " + e.getMessage();
+        }
+    }
+
+    private static User authenticateUser(CommandWrapper commandWrapper) {
+        if (commandWrapper.getLogin() == null || commandWrapper.getPasswordHash() == null) {
+            return null;
+        }
+
+        try {
+            return dbManager.authenticateUser(commandWrapper.getLogin(), commandWrapper.getPasswordHash());
+        } catch (SQLException e) {
+            System.err.println("Database error during authentication: " + e.getMessage());
+            return null;
         }
     }
 

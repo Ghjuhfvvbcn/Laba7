@@ -118,8 +118,6 @@ public class Executor {
             if (musicBands == null) {
                 return "The collection is 'null'";
             } else if (!musicBands.isEmpty()) {
-                int sizeBefore = musicBands.size();
-
                 // Очищаем только элементы, принадлежащие пользователю
                 int deletedCount = dbManager.clearUserMusicBands(user.getId());
 
