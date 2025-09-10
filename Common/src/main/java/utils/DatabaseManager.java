@@ -187,31 +187,6 @@ public class DatabaseManager {
     }
 
     // 4. Метод для загрузки всей коллекции из БД при старте сервера
-//    public TreeMap<Long, MusicBand> loadCollection() throws SQLException {
-//        TreeMap<Long, MusicBand> collection = new TreeMap<>();
-//        String sql = "SELECT mb.*, s.name as studio_name FROM music_bands mb LEFT JOIN studios s ON mb.studio_id = s.id";
-//
-//        try (Statement stmt = connection.createStatement();
-//             ResultSet rs = stmt.executeQuery(sql)) {
-//
-//            while (rs.next()) {
-//                Long id = rs.getLong("id");
-//                // ... создаем объект MusicBand из ResultSet ...
-//                MusicBand band = new MusicBand(
-//                        id,
-//                        rs.getString("name"),
-//                        new Coordinates(rs.getDouble("coordinate_x"), rs.getInt("coordinate_y")),
-//                        rs.getTimestamp("creation_date").toInstant().atZone(ZoneId.systemDefault()),
-//                        rs.getInt("number_of_participants"),
-//                        rs.getString("description"),
-//                        MusicGenre.valueOf(rs.getString("genre")),
-//                        new Studio(rs.getString("studio_name"))
-//                );
-//                collection.put(id, band);
-//            }
-//        }
-//        return collection;
-//    }
     public TreeMap<Long, MusicBand> loadCollection() throws SQLException {
         TreeMap<Long, MusicBand> collection = new TreeMap<>();
         String sql = "SELECT mb.*, s.name as studio_name FROM music_bands mb " +
@@ -222,6 +197,7 @@ public class DatabaseManager {
 
             while (rs.next()) {
                 Long id = rs.getLong("id");
+                int ownerId = rs.getInt("owner_id"); // Получаем owner_id
                 MusicBand band = new MusicBand(
                         id,
                         rs.getString("name"),
@@ -231,7 +207,8 @@ public class DatabaseManager {
                         rs.getString("description"),
                         MusicGenre.valueOf(rs.getString("genre")),
                         rs.getString("studio_name") != null ?
-                                new Studio(rs.getString("studio_name")) : null
+                                new Studio(rs.getString("studio_name")) : null,
+                        ownerId // Передаем owner_id в конструктор
                 );
                 collection.put(id, band);
             }
@@ -333,5 +310,37 @@ public class DatabaseManager {
             connection.close();
             System.out.println("Database connection closed successfully."); // ← ДОБАВЛЕНО
         }
+    }
+
+    public TreeMap<Long, MusicBand> loadUserCollection(int userId) throws SQLException {
+        TreeMap<Long, MusicBand> userCollection = new TreeMap<>();
+        String sql = "SELECT mb.*, s.name as studio_name FROM music_bands mb " +
+                "LEFT JOIN studios s ON mb.studio_id = s.id " +
+                "WHERE mb.owner_id = ?";
+
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            stmt.setInt(1, userId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    Long id = rs.getLong("id");
+                    int ownerId = rs.getInt("owner_id");
+
+                    MusicBand band = new MusicBand(
+                            id,
+                            rs.getString("name"),
+                            new Coordinates(rs.getDouble("coordinate_x"), rs.getInt("coordinate_y")),
+                            rs.getTimestamp("creation_date").toInstant().atZone(ZoneId.systemDefault()),
+                            rs.getInt("number_of_participants"),
+                            rs.getString("description"),
+                            MusicGenre.valueOf(rs.getString("genre")),
+                            rs.getString("studio_name") != null ?
+                                    new Studio(rs.getString("studio_name")) : null,
+                            ownerId
+                    );
+                    userCollection.put(id, band);
+                }
+            }
+        }
+        return userCollection;
     }
 }
