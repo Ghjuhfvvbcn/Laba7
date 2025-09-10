@@ -293,12 +293,26 @@ public class DatabaseManager {
 
             System.out.println("Database tables initialized successfully.");
         } catch (SQLException e) {
-            connection.rollback();
-            connection.setAutoCommit(true);
-
+            try {
+                connection.rollback();
+            } catch (SQLException rollbackEx) {
+                e.addSuppressed(rollbackEx);
+            }
+            try {
+                connection.setAutoCommit(true);
+            } catch (SQLException autoCommitEx) {
+                e.addSuppressed(autoCommitEx);
+            }
             System.err.println("Error initializing database tables: " + e.getMessage());
-            throw e; // Пробрасываем исключение дальше, т.к. без таблиц работа невозможна
+            throw e;
         }
+//        catch (SQLException e) {
+//            connection.rollback();
+//            connection.setAutoCommit(true);
+//
+//            System.err.println("Error initializing database tables: " + e.getMessage());
+//            throw e; // Пробрасываем исключение дальше, т.к. без таблиц работа невозможна
+//        }
     }
 
     public Connection getConnection() {
