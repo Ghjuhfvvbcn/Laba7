@@ -30,7 +30,13 @@ public class DatabaseManager {
 
         this.connection = DriverManager.getConnection(url, props);
 
-        initializeDatabase();
+        if (connection != null && !connection.isClosed()) {
+            System.out.println("Connected to database successfully");
+            System.out.println("Database URL: " + url);
+            initializeDatabase();
+        } else {
+            throw new SQLException("Failed to establish database connection");
+        }
     }
 
     // 1. Метод для аутентификации пользователя
@@ -352,94 +358,177 @@ public class DatabaseManager {
     }
     // ... и другие методы для удаления, обновления ...
 
+//    private void initializeDatabase() throws SQLException {
+//        // Создаем таблицы, если их нет.
+//        // Используем CREATE TABLE IF NOT EXISTS для надежности.
+//
+//        // Создаем тип enum если его нет
+//        String createGenreEnumSQL =
+//                "DO $$ " +
+//                        "BEGIN " +
+//                        "    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'music_genre') THEN " +
+//                        "        CREATE TYPE music_genre AS ENUM ('ROCK', 'PSYCHEDELIC_CLOUD_RAP', 'JAZZ', 'SOUL', 'POST_ROCK'); " +
+//                        "    END IF; " +
+//                        "END $$;";
+//
+//// Создаем индексы для улучшения производительности
+//        String createIndexesSQL =
+//                "CREATE INDEX IF NOT EXISTS idx_music_bands_owner_id ON music_bands(owner_id);" +
+//                        "CREATE INDEX IF NOT EXISTS idx_music_bands_creation_date ON music_bands(creation_date);" +
+//                        "CREATE INDEX IF NOT EXISTS idx_music_bands_collection_key ON music_bands(collection_key);"; // ← ДОБАВЛЕНО;
+//
+//        String createUsersTableSQL =
+//            "CREATE TABLE IF NOT EXISTS users (" +
+//                "id SERIAL PRIMARY KEY," +
+//                "login VARCHAR(255) NOT NULL UNIQUE," +
+//                "password_hash VARCHAR(128) NOT NULL" +
+//            ");" ;
+//
+//        String createStudiosTableSQL =
+//            "CREATE TABLE IF NOT EXISTS studios (" +
+//                "id SERIAL PRIMARY KEY," +
+//                "name VARCHAR(255) NOT NULL UNIQUE" +
+//            ");" ;
+//
+//        String createSequenceSQL =
+//            "CREATE SEQUENCE IF NOT EXISTS music_bands_id_seq START 1;" ;
+//
+//        String createMusicBandsTableSQL =
+//            "CREATE TABLE IF NOT EXISTS music_bands (" +
+//                "id BIGINT PRIMARY KEY DEFAULT nextval('music_bands_id_seq')," +
+//                "owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE," +
+//                "name VARCHAR(255) NOT NULL," +
+//                "coordinate_x DOUBLE PRECISION NOT NULL," +
+//                "coordinate_y INTEGER NOT NULL," +
+//                "creation_date TIMESTAMP WITH TIME ZONE NOT NULL," +
+//                "number_of_participants INTEGER NOT NULL CHECK (number_of_participants > 0)," +
+//                "description TEXT," +
+////                "genre VARCHAR(50) NOT NULL CHECK (genre IN ('ROCK', 'PSYCHEDELIC_CLOUD_RAP', 'JAZZ', 'SOUL', 'POST_ROCK'))," +
+//                "genre music_genre NOT NULL," + // ← ИЗМЕНЕНО: используем тип enum
+//                "studio_id INTEGER REFERENCES studios(id) ON DELETE SET NULL," +
+//                "collection_key BIGINT NOT NULL UNIQUE" + // ← НОВОЕ ПОЛЕ ДЛЯ КЛЮЧА КОЛЛЕКЦИИ
+//            ");" ;
+//
+//        // Выполняем все SQL-запросы по очереди.
+//        try (Statement stmt = connection.createStatement()) {
+//            connection.setAutoCommit(false);
+//
+//            stmt.execute(createGenreEnumSQL);
+//            stmt.execute(createUsersTableSQL);
+//            stmt.execute(createStudiosTableSQL);
+//            stmt.execute(createSequenceSQL);
+//            stmt.execute(createMusicBandsTableSQL);
+//            stmt.execute(createIndexesSQL);
+//
+//            connection.commit();
+//            connection.setAutoCommit(true);
+//
+//            System.out.println("Database tables initialized successfully.");
+//        } catch (SQLException e) {
+//            try {
+//                connection.rollback();
+//            } catch (SQLException rollbackEx) {
+//                e.addSuppressed(rollbackEx);
+//            }
+//            try {
+//                connection.setAutoCommit(true);
+//            } catch (SQLException autoCommitEx) {
+//                e.addSuppressed(autoCommitEx);
+//            }
+//            System.err.println("Error initializing database tables: " + e.getMessage());
+//            throw e;
+//        }
+////        catch (SQLException e) {
+////            connection.rollback();
+////            connection.setAutoCommit(true);
+////
+////            System.err.println("Error initializing database tables: " + e.getMessage());
+////            throw e; // Пробрасываем исключение дальше, т.к. без таблиц работа невозможна
+////        }
+//    }
     private void initializeDatabase() throws SQLException {
-        // Создаем таблицы, если их нет.
-        // Используем CREATE TABLE IF NOT EXISTS для надежности.
+        // Сначала создаем тип enum БЕЗ использования транзакций
+        createMusicGenreTypeIfNotExists();
 
-        // Создаем тип enum если его нет
-        String createGenreEnumSQL =
-                "DO $$ " +
-                        "BEGIN " +
-                        "    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'music_genre') THEN " +
-                        "        CREATE TYPE music_genre AS ENUM ('ROCK', 'PSYCHEDELIC_CLOUD_RAP', 'JAZZ', 'SOUL', 'POST_ROCK'); " +
-                        "    END IF; " +
-                        "END $$;";
+        // SQL-запросы для создания таблиц и индексов
+        String createUsersTableSQL =
+                "CREATE TABLE IF NOT EXISTS users (" +
+                        "id SERIAL PRIMARY KEY," +
+                        "login VARCHAR(255) NOT NULL UNIQUE," +
+                        "password_hash VARCHAR(128) NOT NULL" +
+                        ");";
 
-// Создаем индексы для улучшения производительности
+        String createStudiosTableSQL =
+                "CREATE TABLE IF NOT EXISTS studios (" +
+                        "id SERIAL PRIMARY KEY," +
+                        "name VARCHAR(255) NOT NULL UNIQUE" +
+                        ");";
+
+        String createSequenceSQL =
+                "CREATE SEQUENCE IF NOT EXISTS music_bands_id_seq START 1;";
+
+        String createMusicBandsTableSQL =
+                "CREATE TABLE IF NOT EXISTS music_bands (" +
+                        "id BIGINT PRIMARY KEY DEFAULT nextval('music_bands_id_seq')," +
+                        "owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE," +
+                        "name VARCHAR(255) NOT NULL," +
+                        "coordinate_x DOUBLE PRECISION NOT NULL," +
+                        "coordinate_y INTEGER NOT NULL," +
+                        "creation_date TIMESTAMP WITH TIME ZONE NOT NULL," +
+                        "number_of_participants INTEGER NOT NULL CHECK (number_of_participants > 0)," +
+                        "description TEXT," +
+                        "genre music_genre NOT NULL," +
+                        "studio_id INTEGER REFERENCES studios(id) ON DELETE SET NULL," +
+                        "collection_key BIGINT NOT NULL UNIQUE" +
+                        ");";
+
         String createIndexesSQL =
                 "CREATE INDEX IF NOT EXISTS idx_music_bands_owner_id ON music_bands(owner_id);" +
                         "CREATE INDEX IF NOT EXISTS idx_music_bands_creation_date ON music_bands(creation_date);" +
-                        "CREATE INDEX IF NOT EXISTS idx_music_bands_collection_key ON music_bands(collection_key);"; // ← ДОБАВЛЕНО;
+                        "CREATE INDEX IF NOT EXISTS idx_music_bands_collection_key ON music_bands(collection_key);";
 
-        String createUsersTableSQL =
-            "CREATE TABLE IF NOT EXISTS users (" +
-                "id SERIAL PRIMARY KEY," +
-                "login VARCHAR(255) NOT NULL UNIQUE," +
-                "password_hash VARCHAR(128) NOT NULL" +
-            ");" ;
-
-        String createStudiosTableSQL =
-            "CREATE TABLE IF NOT EXISTS studios (" +
-                "id SERIAL PRIMARY KEY," +
-                "name VARCHAR(255) NOT NULL UNIQUE" +
-            ");" ;
-
-        String createSequenceSQL =
-            "CREATE SEQUENCE IF NOT EXISTS music_bands_id_seq START 1;" ;
-
-        String createMusicBandsTableSQL =
-            "CREATE TABLE IF NOT EXISTS music_bands (" +
-                "id BIGINT PRIMARY KEY DEFAULT nextval('music_bands_id_seq')," +
-                "owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE," +
-                "name VARCHAR(255) NOT NULL," +
-                "coordinate_x DOUBLE PRECISION NOT NULL," +
-                "coordinate_y INTEGER NOT NULL," +
-                "creation_date TIMESTAMP WITH TIME ZONE NOT NULL," +
-                "number_of_participants INTEGER NOT NULL CHECK (number_of_participants > 0)," +
-                "description TEXT," +
-//                "genre VARCHAR(50) NOT NULL CHECK (genre IN ('ROCK', 'PSYCHEDELIC_CLOUD_RAP', 'JAZZ', 'SOUL', 'POST_ROCK'))," +
-                "genre music_genre NOT NULL," + // ← ИЗМЕНЕНО: используем тип enum
-                "studio_id INTEGER REFERENCES studios(id) ON DELETE SET NULL," +
-                "collection_key BIGINT NOT NULL UNIQUE" + // ← НОВОЕ ПОЛЕ ДЛЯ КЛЮЧА КОЛЛЕКЦИИ
-            ");" ;
-
-        // Выполняем все SQL-запросы по очереди.
+        // Создаем таблицы БЕЗ использования транзакции для DDL операций
         try (Statement stmt = connection.createStatement()) {
-            connection.setAutoCommit(false);
-
-            stmt.execute(createGenreEnumSQL);
+            // Выполняем каждый DDL запрос отдельно
             stmt.execute(createUsersTableSQL);
             stmt.execute(createStudiosTableSQL);
             stmt.execute(createSequenceSQL);
             stmt.execute(createMusicBandsTableSQL);
             stmt.execute(createIndexesSQL);
 
-            connection.commit();
-            connection.setAutoCommit(true);
-
             System.out.println("Database tables initialized successfully.");
+
         } catch (SQLException e) {
-            try {
-                connection.rollback();
-            } catch (SQLException rollbackEx) {
-                e.addSuppressed(rollbackEx);
-            }
-            try {
-                connection.setAutoCommit(true);
-            } catch (SQLException autoCommitEx) {
-                e.addSuppressed(autoCommitEx);
-            }
-            System.err.println("Error initializing database tables: " + e.getMessage());
+            System.err.println("Error creating database tables: " + e.getMessage());
             throw e;
         }
-//        catch (SQLException e) {
-//            connection.rollback();
-//            connection.setAutoCommit(true);
-//
-//            System.err.println("Error initializing database tables: " + e.getMessage());
-//            throw e; // Пробрасываем исключение дальше, т.к. без таблиц работа невозможна
-//        }
     }
+
+    private void createMusicGenreTypeIfNotExists() throws SQLException {
+        // Используем более надежный способ проверки существования типа
+        String checkSQL = "SELECT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'music_genre')";
+        String createSQL = "CREATE TYPE music_genre AS ENUM ('ROCK', 'PSYCHEDELIC_CLOUD_RAP', 'JAZZ', 'SOUL', 'POST_ROCK')";
+
+        try (Statement stmt = connection.createStatement();
+             ResultSet rs = stmt.executeQuery(checkSQL)) {
+
+            if (rs.next() && !rs.getBoolean(1)) {
+                // Типа не существует, создаем его
+                stmt.execute(createSQL);
+                System.out.println("Created music_genre enum type successfully");
+
+                // COMMIT явно, чтобы тип стал видимым
+                connection.commit();
+            } else {
+                System.out.println("music_genre enum type already exists");
+            }
+        } catch (SQLException e) {
+            System.err.println("Error creating music_genre type: " + e.getMessage());
+            throw e;
+        }
+    }
+
+
 
     public Connection getConnection() {
         return connection;
