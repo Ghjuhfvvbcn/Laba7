@@ -1,9 +1,11 @@
 package commands.commandsWithArgument;
 
+import commands.CommandWithUser;
 import commands.Executor;
+import data.MusicBand;
 import data.User;
 
-public class Remove_key implements CommandWithArgument<Long>{
+public class Remove_key implements CommandWithArgument<Long>, CommandWithUser {
     private String commandName = "remove_key";
     private Executor executor;
     private Long argument;
@@ -20,6 +22,11 @@ public class Remove_key implements CommandWithArgument<Long>{
     public String execute(User user) {
         if (user == null) return "Error: Authentication required";
         return executor.remove_key(argument, user);
+    }
+
+    @Override
+    public String executeWithMusicBand(MusicBand band, User user){
+        return "Error in class Remove_key in method executeWithMusicBand";
     }
 
     @Override
