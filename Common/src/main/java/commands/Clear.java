@@ -1,8 +1,9 @@
 package commands;
 
+import data.MusicBand;
 import data.User;
 
-public class Clear implements Command {
+public class Clear implements Command, CommandWithUser {
     private final String commandName = "clear";
     private final Executor executor;
 
@@ -18,6 +19,10 @@ public class Clear implements Command {
     public String execute(User user) {
         if (user == null) return "Error: Authentication required";
         return executor.clear(user);
+    }
+
+    public String executeWithMusicBand(MusicBand band, User user){
+        return null;
     }
 
     @Override
