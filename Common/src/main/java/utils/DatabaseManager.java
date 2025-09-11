@@ -109,7 +109,7 @@ public class DatabaseManager {
         // Используем sequence для генерации id, но сохраняем переданный key как отдельное поле
         String sql = "INSERT INTO music_bands (id, owner_id, name, coordinate_x, coordinate_y, " +
                 "creation_date, number_of_participants, description, genre, studio_id, collection_key) " +
-                "VALUES (DEFAULT, ?, ?, ?, ?, ?, ?, ?, ?::music_genre, ?, ?) RETURNING id";
+                "VALUES (DEFAULT, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setInt(1, ownerId);
@@ -181,7 +181,7 @@ public class DatabaseManager {
 
         // МЕНЯЕМ SQL ЗАПРОС: используем collection_key вместо id
         String sql = "UPDATE music_bands SET name = ?, coordinate_x = ?, coordinate_y = ?, " +
-                "number_of_participants = ?, description = ?, genre = ?::music_genre, " +
+                "number_of_participants = ?, description = ?, genre = ?, " +
                 "studio_id = ? WHERE collection_key = ? AND owner_id = ?"; // ← ИЗМЕНИЛИ id на collection_key
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {

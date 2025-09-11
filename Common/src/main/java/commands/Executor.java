@@ -321,6 +321,9 @@ public String insert(Long key, MusicBand band, User user) {
             return "The collection already contains the key: " + key;
         }
 
+        // Устанавливаем владельца перед вставкой в БД
+        band.setOwnerId(user.getId());
+
         // Пытаемся вставить в БД
         boolean success = dbManager.insertMusicBand(key, band, user.getId());
         if (success) {
@@ -352,6 +355,9 @@ public String insert(Long key, MusicBand band, User user) {
             if (existingBand.getOwnerId() != user.getId()) {
                 return "Error: You don't have permission to update this band";
             }
+
+            // Устанавливаем владельца перед вставкой в БД
+            band.setOwnerId(user.getId());
 
             // Обновляем в БД
             boolean success = dbManager.updateMusicBand(id, band, user.getId());

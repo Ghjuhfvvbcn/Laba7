@@ -58,14 +58,26 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
         setOwnerId(ownerId); // Устанавливаем владельца
     }
 
+    public MusicBand(String name, Coordinates coordinates, int numberOfParticipants,
+                     String description, MusicGenre genre, Studio studio) {
+        setName(name);
+        setCoordinates(coordinates);
+        creationDate = ZonedDateTime.now();
+        setNumberOfParticipants(numberOfParticipants);
+        setDescription(description);
+        setGenre(genre);
+        setStudio(studio);
+        // ownerId не устанавливается - будет установлен на сервере
+    }
+
     public MusicBand() {
         this.creationDate = ZonedDateTime.now();
     }
 
     // Добавлены геттер и сеттер для ownerId
     public void setOwnerId(int ownerId) {
-        if (ownerId <= 0) {
-            throw new IllegalArgumentException("Owner ID should be a positive number");
+        if (ownerId < 0) {  // Меняем <= 0 на < 0
+            throw new IllegalArgumentException("Owner ID should be a non-negative number");
         } else {
             this.ownerId = ownerId;
         }
