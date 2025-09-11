@@ -10,6 +10,7 @@ import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 public class ClientMain {
@@ -21,7 +22,7 @@ public class ClientMain {
     private static String userLogin;
     private static String userPasswordHash;
 
-    public static void main( String[] args ) {
+    public static void main(String[] args) {
         if (!authenticateUser()) {
             System.out.println("Authentication failed. Shutting down...");
             return;
@@ -70,7 +71,16 @@ public class ClientMain {
                 }
 
                 Object response = sendCommandToServer(input, musicBand);
-                if (response instanceof Object[]) {
+
+                // ИЗМЕНЕНО: Добавлена обработка chunk'ов (ArrayList) от сервера
+                if (response instanceof ArrayList) {
+                    // Сервер отправил ответ, разбитый на части - собираем и выводим
+                    ArrayList<String> chunks = (ArrayList<String>) response;
+                    for (String chunk : chunks) {
+                        System.out.print(chunk); // Выводим все части подряд без переносов
+                    }
+                    System.out.println(); // Добавляем перенос строки после всего сообщения
+                } else if (response instanceof Object[]) {
                     Arrays.stream((Object[]) response).forEach(System.out::println);
                 } else {
                     System.out.println(response);
@@ -86,7 +96,6 @@ public class ClientMain {
                 }
             }
         }
-
     }
 
     private static String hashPassword(String password) {
@@ -104,7 +113,6 @@ public class ClientMain {
             throw new RuntimeException("SHA-512 algorithm not available", e);
         }
     }
-
 
     private static boolean authenticateUser() {
         Console console = new Console();
@@ -158,7 +166,8 @@ public class ClientMain {
     private static Object sendAuthCommand(String commandName, String login, String passwordHash)
             throws IOException {
         try (DatagramChannel channel = DatagramChannel.open()) {
-            channel.configureBlocking(false);
+            // ИЗМЕНЕНО: Переход на блокирующий режим
+            channel.configureBlocking(true); // Блокирующий режим - ждем ответа
             channel.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT));
 
             // Создаем CommandWrapper для аутентификации
@@ -167,7 +176,7 @@ public class ClientMain {
             wrapper.setLogin(login);
             wrapper.setPasswordHash(passwordHash);
 
-            // Отправляем и получаем ответ (аналогично sendCommandToServer)
+            // Отправляем и получаем ответ
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             ObjectOutputStream oos = new ObjectOutputStream(baos);
             oos.writeObject(wrapper);
@@ -177,22 +186,12 @@ public class ClientMain {
             ByteBuffer buffer = ByteBuffer.wrap(requestData);
             channel.write(buffer);
 
+            // ИЗМЕНЕНО: Блокирующее чтение - канал будет ждать ответа
             ByteBuffer responseBuffer = ByteBuffer.allocate(65536);
-            int bytesRead;
-            int attempts = 0;
+            int bytesRead = channel.read(responseBuffer); // Блокируется здесь до получения данных
 
-            while ((bytesRead = channel.read(responseBuffer)) == 0 && attempts < 10) {
-                attempts++;
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("Response wait interrupted");
-                }
-            }
-
-            if (bytesRead == 0) {
-                throw new IOException("No response from server (timeout)");
+            if (bytesRead == -1) {
+                throw new IOException("Connection closed by server");
             }
 
             responseBuffer.flip();
@@ -207,7 +206,6 @@ public class ClientMain {
         }
     }
 
-
     private static String validateCommandInput(Console.CommandInput input) {
         switch (input.command) {
             case "insert":
@@ -220,7 +218,7 @@ public class ClientMain {
                 }
                 try {
                     Long arg = Long.parseLong(input.argument.trim());
-                    if (arg <= 0){
+                    if (arg <= 0) {
                         throw new NumberFormatException("вот-вот");
                     }
                 } catch (NumberFormatException e) {
@@ -239,7 +237,8 @@ public class ClientMain {
 
     private static Object sendCommandToServer(Console.CommandInput input, MusicBand musicBand) throws IOException {
         try (DatagramChannel channel = DatagramChannel.open()) {
-            channel.configureBlocking(false);
+            // ИЗМЕНЕНО: Переход на блокирующий режим
+            channel.configureBlocking(true); // Блокирующий режим - канал будет ждать операций
             channel.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT));
 
             if (!channel.isConnected()) {
@@ -260,22 +259,12 @@ public class ClientMain {
             ByteBuffer buffer = ByteBuffer.wrap(requestData);
             channel.write(buffer);
 
+            // ИЗМЕНЕНО: Упрощенная логика чтения в блокирующем режиме
             ByteBuffer responseBuffer = ByteBuffer.allocate(65536);
-            int bytesRead;
-            int attempts = 0;
+            int bytesRead = channel.read(responseBuffer); // Блокируется здесь до получения ответа
 
-            while ((bytesRead = channel.read(responseBuffer)) == 0 && attempts < 10) {
-                attempts++;
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("Response wait interrupted");
-                }
-            }
-
-            if (bytesRead == 0) {
-                throw new IOException("No response from server (timeout)");
+            if (bytesRead == -1) {
+                throw new IOException("Connection closed by server");
             }
 
             responseBuffer.flip();
