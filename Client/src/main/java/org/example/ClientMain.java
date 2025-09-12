@@ -5,8 +5,7 @@ import data.MusicBand;
 import utils.Console;
 
 import java.io.*;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
+import java.net.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
 import java.security.MessageDigest;
@@ -187,42 +186,112 @@ public class ClientMain {
         return false;
     }
 
+//    private static Object sendAuthCommand(String commandName, String login, String passwordHash) throws IOException {
+//        try (DatagramChannel channel = DatagramChannel.open()) {
+//            // ИЗМЕНЕНО: Переход на блокирующий режим
+//            channel.configureBlocking(true); // Блокирующий режим - ждем ответа
+//            channel.socket().setSoTimeout(5000); // 5 секунд
+//            try{
+//                channel.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT));
+//
+//                // Создаем CommandWrapper для аутентификации
+//                CommandWrapper wrapper = new CommandWrapper();
+//                wrapper.setCommandName(commandName);
+//                wrapper.setLogin(login);
+//                wrapper.setPasswordHash(passwordHash);
+//
+//                // Отправляем и получаем ответ
+//                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+//                ObjectOutputStream oos = new ObjectOutputStream(baos);
+//                oos.writeObject(wrapper);
+//                oos.flush();
+//
+//                byte[] requestData = baos.toByteArray();
+//                ByteBuffer buffer = ByteBuffer.wrap(requestData);
+//                channel.write(buffer);
+//
+//                // ИЗМЕНЕНО: Блокирующее чтение - канал будет ждать ответа
+//                ByteBuffer responseBuffer = ByteBuffer.allocate(65536);
+//                int bytesRead = channel.read(responseBuffer); // Блокируется здесь до получения данных
+//
+//                if (bytesRead == -1) {
+//                    throw new IOException("Connection closed by server");
+//                }
+//
+//                responseBuffer.flip();
+//                byte[] responseData = new byte[responseBuffer.remaining()];
+//                responseBuffer.get(responseData);
+//
+//                ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(responseData));
+//                return ois.readObject();
+//            }catch (NoRouteToHostException e) {
+//                // Сервер недоступен
+//                throw new IOException("Server is unreachable", e);
+//            } catch (ConnectException e) {
+//                // Соединение отклонено
+//                throw new IOException("Connection refused by server", e);
+//            } catch (SocketTimeoutException e) {
+//                // Таймаут соединения
+//                throw new IOException("Connection timeout", e);
+//            }
+//
+//        } catch (ClassNotFoundException e) {
+//            throw new IOException("Error deserializing response", e);
+//        }
+//    }
+
     private static Object sendAuthCommand(String commandName, String login, String passwordHash) throws IOException {
         try (DatagramChannel channel = DatagramChannel.open()) {
-            // ИЗМЕНЕНО: Переход на блокирующий режим
-            channel.configureBlocking(true); // Блокирующий режим - ждем ответа
-            channel.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT));
+            channel.configureBlocking(true);
+            channel.socket().setSoTimeout(5000); // 5 секунд таймаут на чтение
 
-            // Создаем CommandWrapper для аутентификации
-            CommandWrapper wrapper = new CommandWrapper();
-            wrapper.setCommandName(commandName);
-            wrapper.setLogin(login);
-            wrapper.setPasswordHash(passwordHash);
+            try {
+                channel.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT));
 
-            // Отправляем и получаем ответ
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ObjectOutputStream oos = new ObjectOutputStream(baos);
-            oos.writeObject(wrapper);
-            oos.flush();
+                // Создаем CommandWrapper для аутентификации
+                CommandWrapper wrapper = new CommandWrapper();
+                wrapper.setCommandName(commandName);
+                wrapper.setLogin(login);
+                wrapper.setPasswordHash(passwordHash);
 
-            byte[] requestData = baos.toByteArray();
-            ByteBuffer buffer = ByteBuffer.wrap(requestData);
-            channel.write(buffer);
+                // Отправляем и получаем ответ
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                ObjectOutputStream oos = new ObjectOutputStream(baos);
+                oos.writeObject(wrapper);
+                oos.flush();
 
-            // ИЗМЕНЕНО: Блокирующее чтение - канал будет ждать ответа
-            ByteBuffer responseBuffer = ByteBuffer.allocate(65536);
-            int bytesRead = channel.read(responseBuffer); // Блокируется здесь до получения данных
+                byte[] requestData = baos.toByteArray();
+                ByteBuffer buffer = ByteBuffer.wrap(requestData);
+                channel.write(buffer);
 
-            if (bytesRead == -1) {
-                throw new IOException("Connection closed by server");
+                ByteBuffer responseBuffer = ByteBuffer.allocate(65536);
+                int bytesRead = channel.read(responseBuffer); // Блокируется здесь
+
+                if (bytesRead == -1) {
+                    throw new IOException("Connection closed by server");
+                }
+
+                responseBuffer.flip();
+                byte[] responseData = new byte[responseBuffer.remaining()];
+                responseBuffer.get(responseData);
+
+                ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(responseData));
+                return ois.readObject();
+
+            } catch (SocketTimeoutException e) {
+                // Таймаут чтения - сервер не ответил
+                throw new IOException("Server did not respond within timeout", e);
+            } catch (PortUnreachableException e) {
+                // Порт недоступен (ICMP сообщение)
+                throw new IOException("Server port is unreachable", e);
+            } catch (IOException e) {
+                // Общая обработка других IO исключений
+                if (e.getMessage() != null) {
+                    throw new IOException("Network error: " + e.getMessage(), e);
+                } else {
+                    throw new IOException("Unknown network error", e);
+                }
             }
-
-            responseBuffer.flip();
-            byte[] responseData = new byte[responseBuffer.remaining()];
-            responseBuffer.get(responseData);
-
-            ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(responseData));
-            return ois.readObject();
 
         } catch (ClassNotFoundException e) {
             throw new IOException("Error deserializing response", e);
