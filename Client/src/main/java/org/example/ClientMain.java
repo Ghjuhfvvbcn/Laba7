@@ -331,40 +331,60 @@ public class ClientMain {
         try (DatagramChannel channel = DatagramChannel.open()) {
             // ИЗМЕНЕНО: Переход на блокирующий режим
             channel.configureBlocking(true); // Блокирующий режим - канал будет ждать операций
-            channel.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT));
+            channel.socket().setSoTimeout(5000); // ← ДОБАВЬТЕ ЭТУ СТРОЧКУ!
 
-            if (!channel.isConnected()) {
-                throw new IOException("Failed to establish address");
+            try {
+                channel.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT));
+
+//                if (!channel.isConnected()) {
+//                    throw new IOException("Failed to establish address");
+//                }
+
+                CommandWrapper commandWrapper = createCommandWrapper(input, musicBand);
+                if (commandWrapper == null) {
+                    return "Error: Failed to create command wrapper";
+                }
+
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                ObjectOutputStream oos = new ObjectOutputStream(baos);
+                oos.writeObject(commandWrapper);
+                oos.flush();
+
+                byte[] requestData = baos.toByteArray();
+                ByteBuffer buffer = ByteBuffer.wrap(requestData);
+                channel.write(buffer);
+
+                // ИЗМЕНЕНО: Упрощенная логика чтения в блокирующем режиме
+                ByteBuffer responseBuffer = ByteBuffer.allocate(65536);
+                int bytesRead = channel.read(responseBuffer); // Блокируется здесь до получения ответа
+
+                if (bytesRead == -1) {
+                    throw new IOException("Connection closed by server");
+                }
+
+                responseBuffer.flip();
+                byte[] responseData = new byte[responseBuffer.remaining()];
+                responseBuffer.get(responseData);
+
+                ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(responseData));
+                return ois.readObject();
+            }catch (SocketTimeoutException e) {
+                // Таймаут чтения - сервер не ответил
+                throw new IOException("Server did not respond within timeout", e);
+            } catch (PortUnreachableException e) {
+                // Порт недоступен (ICMP сообщение)
+                throw new IOException("Server port is unreachable", e);
+            } catch (IOException e) {
+                String errorMsg = e.getMessage();
+                if (errorMsg == null) {
+                    errorMsg = "Unknown network error";
+                } else if (errorMsg.contains("Connection refused")) {
+                    errorMsg = "Server refused connection (may be offline)";
+                } else if (errorMsg.contains("Network is unreachable")) {
+                    errorMsg = "Network is unreachable";
+                }
+                throw new IOException(errorMsg, e);
             }
-
-            CommandWrapper commandWrapper = createCommandWrapper(input, musicBand);
-            if (commandWrapper == null) {
-                return "Error: Failed to create command wrapper";
-            }
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ObjectOutputStream oos = new ObjectOutputStream(baos);
-            oos.writeObject(commandWrapper);
-            oos.flush();
-
-            byte[] requestData = baos.toByteArray();
-            ByteBuffer buffer = ByteBuffer.wrap(requestData);
-            channel.write(buffer);
-
-            // ИЗМЕНЕНО: Упрощенная логика чтения в блокирующем режиме
-            ByteBuffer responseBuffer = ByteBuffer.allocate(65536);
-            int bytesRead = channel.read(responseBuffer); // Блокируется здесь до получения ответа
-
-            if (bytesRead == -1) {
-                throw new IOException("Connection closed by server");
-            }
-
-            responseBuffer.flip();
-            byte[] responseData = new byte[responseBuffer.remaining()];
-            responseBuffer.get(responseData);
-
-            ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(responseData));
-            return ois.readObject();
         } catch (ClassNotFoundException e) {
             throw new IOException("Error deserializing response", e);
         }
