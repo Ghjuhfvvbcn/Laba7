@@ -5,6 +5,7 @@ import data.MusicBand;
 import utils.Console;
 
 import java.io.*;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.DatagramChannel;
@@ -123,8 +124,9 @@ public class ClientMain {
             String password = null;
             String choice = null;
             String con;
-            System.out.print("Login (or 'exit' to quit): ");
+
             while (login == null) {
+                System.out.print("Login (or 'exit' to quit): ");
                 con = console.readLine();
                 if (!con.trim().isEmpty()) {
                     if (con.equalsIgnoreCase("exit")) {
@@ -138,8 +140,8 @@ public class ClientMain {
             }
 
 
-            System.out.print("Password (or 'exit' to quit): ");
             while (password == null) {
+                System.out.print("Password (or 'exit' to quit): ");
                 con = console.readLine();
                 if (!con.trim().isEmpty()) {
                     if (con.equalsIgnoreCase("exit")) {
@@ -179,8 +181,8 @@ public class ClientMain {
                 userPasswordHash = passwordHash;
                 return true;
             }
-        } catch (IOException e) {
-            System.err.println("Authentication error: " + e.getMessage());
+        } catch (IOException e){
+            System.err.println("Authenticate error: " + e.getMessage());
         }
         return false;
     }
