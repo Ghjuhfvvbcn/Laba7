@@ -116,51 +116,87 @@ public class ClientMain {
 
     private static boolean authenticateUser() {
         Console console = new Console();
+        int attempts = 0;
+        final int MAX_ATTEMPTS = 3;
 
         System.out.println("=== Authentication ===");
 
-        try {
-            System.out.print("Login: ");
-            String login = console.readLine();
-            if (login == null || login.trim().isEmpty()) {
-                System.out.println("Login cannot be empty");
-                return false;
+        while (attempts < MAX_ATTEMPTS) {
+            try {
+                System.out.print("Login (or 'exit' to quit): ");
+                String login = console.readLine();
+
+                // Обработка выхода
+                if (login == null || login.equalsIgnoreCase("exit")) {
+                    return false;
+                }
+
+                if (login.trim().isEmpty()) {
+                    System.out.println("Login cannot be empty");
+                    attempts++;
+                    continue;
+                }
+
+                System.out.print("Password: ");
+                String password = console.readLine();
+
+                // Обработка выхода
+                if (password == null || password.equalsIgnoreCase("exit")) {
+                    return false;
+                }
+
+                if (password.trim().isEmpty()) {
+                    System.out.println("Password cannot be empty");
+                    attempts++;
+                    continue;
+                }
+
+                System.out.print("Register (r) or Login (l)? (or 'exit' to quit): ");
+                String choice = console.readLine();
+
+                // Обработка выхода
+                if (choice == null || choice.equalsIgnoreCase("exit")) {
+                    return false;
+                }
+
+                if (!choice.equalsIgnoreCase("r") && !choice.equalsIgnoreCase("l")) {
+                    System.out.println("Invalid choice. Use 'r' for register or 'l' for login");
+                    attempts++;
+                    continue;
+                }
+
+                String passwordHash = hashPassword(password);
+                String commandName = choice.equalsIgnoreCase("r") ? "register" : "login";
+
+                // Отправляем команду аутентификации
+                Object response = sendAuthCommand(commandName, login, passwordHash);
+                System.out.println(response);
+
+                if (response.toString().contains("successfully") ||
+                        response.toString().contains("successful")) {
+                    userLogin = login;
+                    userPasswordHash = passwordHash;
+                    return true;
+                } else {
+                    attempts++;
+                    if (attempts < MAX_ATTEMPTS) {
+                        System.out.println("Authentication failed. Attempts left: " + (MAX_ATTEMPTS - attempts));
+                    } else {
+                        System.out.println("Too many failed attempts. Shutting down...");
+                        return false;
+                    }
+                }
+
+            } catch (IOException e) {
+                System.err.println("Authentication error: " + e.getMessage());
+                attempts++;
+                if (attempts >= MAX_ATTEMPTS) {
+                    System.out.println("Too many errors. Shutting down...");
+                    return false;
+                }
             }
-
-            System.out.print("Password: ");
-            String password = console.readLine();
-            if (password == null || password.trim().isEmpty()) {
-                System.out.println("Password cannot be empty");
-                return false;
-            }
-
-            System.out.print("Register (r) or Login (l)? ");
-            String choice = console.readLine();
-
-            if (choice == null || (!choice.equalsIgnoreCase("r") && !choice.equalsIgnoreCase("l"))) {
-                System.out.println("Invalid choice. Use 'r' for register or 'l' for login");
-                return false;
-            }
-
-            String passwordHash = hashPassword(password);
-            String commandName = choice.equalsIgnoreCase("r") ? "register" : "login";
-
-            // Отправляем команду аутентификации
-            Object response = sendAuthCommand(commandName, login, passwordHash);
-            System.out.println(response);
-
-            if (response.toString().contains("successfully") ||
-                    response.toString().contains("successful")) {
-                userLogin = login;
-                userPasswordHash = passwordHash;
-                return true;
-            }
-            return false;
-
-        } catch (IOException e) {
-            System.err.println("Authentication error: " + e.getMessage());
-            return false;
         }
+        return false;
     }
 
     private static Object sendAuthCommand(String commandName, String login, String passwordHash)
