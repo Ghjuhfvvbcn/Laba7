@@ -430,6 +430,7 @@ public class ServerMain {
         }
 
         System.out.println("Server shutdown complete");
+        System.exit(1);
     }
 
     /**

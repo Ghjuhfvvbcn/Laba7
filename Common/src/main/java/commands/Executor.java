@@ -288,30 +288,6 @@ public class Executor {
         }
     }
 
-//    public String insert(Long key, MusicBand band, User user) { // Добавили аргумент User
-//        if (user == null) return "Error: Authentication required";
-//
-//        collectionLock.writeLock().lock();
-//        try {
-//            if (musicBands.containsKey(key)) {
-//                return "The collection already contains the key: " + key;
-//            }
-//            // Пытаемся вставить в БД
-//            boolean success = dbManager.insertMusicBand(key, band, user.getId());
-//            if (success) {
-//                // Только после успеха в БД добавляем в память
-//                band.setId(key);
-//                musicBands.put(key, band);
-//                return "Music band inserted successfully.";
-//            } else {
-//                return "Failed to insert music band into database.";
-//            }
-//        } catch (SQLException e) {
-//            return "Database error during insert: " + e.getMessage();
-//        } finally {
-//            collectionLock.writeLock().unlock();
-//        }
-//    }
 public String insert(Long key, MusicBand band, User user) {
     if (user == null) return "Error: Authentication required";
 
@@ -362,12 +338,6 @@ public String insert(Long key, MusicBand band, User user) {
             // Обновляем в БД
             boolean success = dbManager.updateMusicBand(id, band, user.getId());
             if (success) {
-//                Только после успеха в БД обновляем в памяти
-//                band.setId(id);
-//                band.setOwnerId(user.getId()); // Сохраняем владельца
-//                musicBands.put(id, band);
-//                return "Music band updated successfully.";
-                // Исправляем: сохраняем оригинальный ID объекта, а не пользовательский ключ
                 band.setId(existingBand.getId()); // ← existingBand имеет правильный ID
                 band.setOwnerId(user.getId());
                 musicBands.put(id, band); // Ключ коллекции остается прежним (id)
@@ -435,49 +405,6 @@ public String insert(Long key, MusicBand band, User user) {
         }
     }
 
-//    public String replace_if_lower(Long key, MusicBand newBand, User user) {
-//        if (user == null) return "Error: Authentication required";
-//
-//        collectionLock.writeLock().lock();
-//        try {
-//            if (musicBands.isEmpty()) {
-//                return "The collection is empty";
-//            }
-//
-//            // Проверяем существование ключа и права доступа
-//            if (!musicBands.containsKey(key)) {
-//                return "The collection doesn't contain the key " + key;
-//            }
-//
-//            MusicBand oldBand = musicBands.get(key);
-//            if (oldBand.getOwnerId() != user.getId()) {
-//                return "Error: You don't have permission to replace this band";
-//            }
-//
-//            // Проверяем условие замены (новый элемент должен быть "меньше")
-//            if (compareByDateAndName.compare(oldBand, newBand) <= 0) {
-//                return "New value is not lower than existing value.";
-//            }
-//
-//            // Заменяем в БД
-//            newBand.setId(key);
-//            newBand.setOwnerId(user.getId()); // Сохраняем владельца
-//
-//            boolean success = dbManager.updateMusicBand(key, newBand, user.getId());
-//            if (success) {
-//                // Только после успеха в БД заменяем в памяти
-//                musicBands.put(key, newBand);
-//                return "Music band replaced successfully.";
-//            } else {
-//                return "Failed to replace music band in database.";
-//            }
-//
-//        } catch (SQLException e) {
-//            return "Database error during replace_if_lower: " + e.getMessage();
-//        } finally {
-//            collectionLock.writeLock().unlock();
-//        }
-//    }
 public String replace_if_lower(Long key, MusicBand newBand, User user) {
     if (user == null) return "Error: Authentication required";
 
@@ -678,16 +605,6 @@ public String replace_if_lower(Long key, MusicBand newBand, User user) {
         } catch (Exception e) {
             return "Line " + lineNumber + ": Error executing command: " + e.getMessage();
         }
-    }
-
-    public String saveCollection() {
-//        try {
-//            WriterCSV.loadToFile(file_csv, musicBands);
-//            return "The collection was successfully saved to the file '" + file_csv + "'";
-//        } catch (IOException e) {
-//            return "Error saving collection: " + e.getMessage();
-//        }
-        return null;
     }
 
     public int getSizeOfCollection(){
