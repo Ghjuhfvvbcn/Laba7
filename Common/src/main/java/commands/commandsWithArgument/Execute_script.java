@@ -1,9 +1,11 @@
 package commands.commandsWithArgument;
 
+import commands.CommandWithUser;
 import commands.Executor;
+import data.MusicBand;
 import data.User;
 
-public class Execute_script implements CommandWithArgument<String> {
+public class Execute_script implements CommandWithArgument<String>, CommandWithUser {
     private final String commandName = "execute_script";
     private final Executor executor;
     private String argument;
@@ -21,6 +23,13 @@ public class Execute_script implements CommandWithArgument<String> {
         if (user == null) return "Error: Authentication required";
         if (argument == null || argument.trim().isEmpty()) {
             return "Error: Script filename is required";
+        }
+        return executor.execute_script(argument, user);
+    }
+
+    public String executeWithMusicBand(MusicBand band, User user) {
+        if (user == null) {
+            return "Error: Authentication required";
         }
         return executor.execute_script(argument, user);
     }

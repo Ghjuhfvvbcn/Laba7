@@ -34,7 +34,10 @@ public class Executor {
     public Executor(DatabaseManager dbManager){
         this.dbManager = dbManager;
         try {
-            this.musicBands = dbManager.loadCollection(); // Загружаем из БД, а не из файла!
+            this.musicBands = dbManager.loadCollection();
+            if (this.musicBands == null) {
+                this.musicBands = new TreeMap<>();
+            }
         } catch (SQLException e) {
             System.err.println("Failed to load collection from DB: " + e.getMessage());
             this.musicBands = new TreeMap<>();
