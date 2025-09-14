@@ -497,7 +497,7 @@ public String replace_if_lower(Long key, MusicBand newBand, User user) {
                 String line;
                 int lineNumber = 0;
 
-                while ((line = consoleScript.readLine()) != null) {
+                while ((line = consoleScript.readLines()) != null) {
                     lineNumber++;
                     if (line.trim().isEmpty()) continue;
 

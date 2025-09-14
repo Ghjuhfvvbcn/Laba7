@@ -149,6 +149,16 @@ public class Console {
             throw e;
         }
     }
+    public String readLines() throws IOException{
+        try {
+            return reader.readLine(); // просто возвращаем null при конце файла
+        } catch (IOException e) {
+            if (e.getMessage().contains("Interrupted")) {
+                throw new EOFException("Operation cancelled by user");
+            }
+            throw e;
+        }
+    }
 
     public String readMusicBandName(String s1, String s2) throws EOFException {
         String s;
