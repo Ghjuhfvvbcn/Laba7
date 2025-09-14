@@ -11,7 +11,6 @@ public class DatabaseManager {
     private final Connection connection;
 
     public DatabaseManager(String url, String user, String password) throws SQLException {
-        // ЯВНАЯ РЕГИСТРАЦИЯ ДРАЙВЕРА
         try {
             Class.forName("org.postgresql.Driver");
             System.out.println("PostgreSQL driver registered successfully");
@@ -22,10 +21,8 @@ public class DatabaseManager {
         Properties props = new Properties();
         props.setProperty("user", user);
         props.setProperty("password", password);
-        // Может понадобиться для корректной работы с timezone
         props.setProperty("options", "-c timezone=UTC");
 
-        // Дополнительные настройки для лучшей производительности
         props.setProperty("prepareThreshold", "5");
 
         this.connection = DriverManager.getConnection(url, props);
@@ -39,9 +36,7 @@ public class DatabaseManager {
         }
     }
 
-    // 1. Метод для аутентификации пользователя
     public User authenticateUser(String login, String passwordHash) throws SQLException {
-//        String sql = "SELECT id FROM users WHERE login = ? AND password_hash = ?";
         String sql = "SELECT id, login FROM users WHERE login = ? AND password_hash = ?";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, login);
@@ -54,12 +49,10 @@ public class DatabaseManager {
                 }
             }
         }
-        return null; // Неверный логин/пароль
+        return null;
     }
 
-    // 2. Метод для регистрации нового пользователя
     public boolean registerUser(String login, String passwordHash) throws SQLException {
-        // Используем INSERT с ON CONFLICT для атомарной проверки и вставки
         String sql = "INSERT INTO users (login, password_hash) VALUES (?, ?) " +
                 "ON CONFLICT (login) DO NOTHING RETURNING id";
 
@@ -67,19 +60,17 @@ public class DatabaseManager {
             stmt.setString(1, login);
             stmt.setString(2, passwordHash);
             try (ResultSet rs = stmt.executeQuery()) {
-                return rs.next(); // Если есть результат - пользователь создан
+                return rs.next();
             }
         }
     }
 
-    // 3. Метод для добавления нового MusicBand в БД
     public boolean insertMusicBand(Long key, MusicBand band, int ownerId) throws SQLException {
         Integer studioId = null;
         if (band.getStudio() != null && band.getStudio().getName() != null) {
             studioId = getOrInsertStudio(band.getStudio().getName());
         }
 
-        // Используем sequence для генерации id, но сохраняем переданный key как отдельное поле
         String sql = "INSERT INTO music_bands (id, owner_id, name, coordinate_x, coordinate_y, " +
                 "creation_date, number_of_participants, description, genre, studio_id, collection_key) " +
                 "VALUES (DEFAULT, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id";
@@ -94,12 +85,12 @@ public class DatabaseManager {
             stmt.setString(7, band.getDescription());
             stmt.setString(8, band.getGenre().name());
             stmt.setObject(9, studioId, Types.INTEGER);
-            stmt.setLong(10, key); // Сохраняем ключ коллекции в отдельном поле
+            stmt.setLong(10, key);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     Long generatedId = rs.getLong("id");
-                    band.setId(generatedId); // Устанавливаем сгенерированный ID в объект
+                    band.setId(generatedId);
                     return true;
                 }
             }
@@ -117,10 +108,9 @@ public class DatabaseManager {
             studioId = getOrInsertStudio(band.getStudio().getName());
         }
 
-        // МЕНЯЕМ SQL ЗАПРОС: используем collection_key вместо id
         String sql = "UPDATE music_bands SET name = ?, coordinate_x = ?, coordinate_y = ?, " +
                 "number_of_participants = ?, description = ?, genre = ?, " +
-                "studio_id = ? WHERE collection_key = ? AND owner_id = ?"; // ← ИЗМЕНИЛИ id на collection_key
+                "studio_id = ? WHERE collection_key = ? AND owner_id = ?";
 
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setString(1, band.getName());
@@ -136,7 +126,7 @@ public class DatabaseManager {
                 stmt.setNull(7, Types.INTEGER);
             }
 
-            stmt.setLong(8, key); // collection_key = пользовательский ключ
+            stmt.setLong(8, key);
             stmt.setInt(9, ownerId);
 
             int affectedRows = stmt.executeUpdate();
@@ -144,25 +134,11 @@ public class DatabaseManager {
         }
     }
 
-//    public boolean removeMusicBand(Long key, int userId) throws SQLException {
-//        if (!checkOwnership(key, userId)) {
-//            return false;
-//        }
-//
-//        String sql = "DELETE FROM music_bands WHERE id = ? AND owner_id = ?";
-//        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
-//            stmt.setLong(1, key);
-//            stmt.setInt(2, userId);
-//            int affectedRows = stmt.executeUpdate();
-//            return affectedRows > 0;
-//        }
-//    }
     public boolean removeMusicBand(Long key, int userId) throws SQLException {
         if (!checkOwnership(key, userId)) {
             return false;
         }
 
-        // МЕНЯЕМ: используем collection_key вместо id
         String sql = "DELETE FROM music_bands WHERE collection_key = ? AND owner_id = ?";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setLong(1, key); // collection_key
@@ -189,7 +165,6 @@ public class DatabaseManager {
             return null;
         }
 
-        // Пытаемся сначала найти существующую студию
         String selectSql = "SELECT id FROM studios WHERE name = ?";
         try (PreparedStatement selectStmt = connection.prepareStatement(selectSql)) {
             selectStmt.setString(1, studioName);
@@ -200,7 +175,6 @@ public class DatabaseManager {
             }
         }
 
-        // Если не найдена, вставляем новую
         String insertSql = "INSERT INTO studios (name) VALUES (?) RETURNING id";
         try (PreparedStatement insertStmt = connection.prepareStatement(insertSql)) {
             insertStmt.setString(1, studioName);
@@ -214,7 +188,6 @@ public class DatabaseManager {
         throw new SQLException("Failed to insert or find studio: " + studioName);
     }
 
-    // 4. Метод для загрузки всей коллекции из БД при старте сервера
     public TreeMap<Long, MusicBand> loadCollection() throws SQLException {
         TreeMap<Long, MusicBand> collection = new TreeMap<>();
         String sql = "SELECT mb.*, s.name as studio_name FROM music_bands mb " +
@@ -224,11 +197,11 @@ public class DatabaseManager {
              ResultSet rs = stmt.executeQuery()) {
 
             while (rs.next()) {
-                Long collectionKey = rs.getLong("collection_key"); // Ключ для коллекции
-                Long id = rs.getLong("id"); // Сгенерированный ID объекта
+                Long collectionKey = rs.getLong("collection_key");
+                Long id = rs.getLong("id");
 
                 MusicBand band = new MusicBand(
-                        id, // Передаем сгенерированный ID
+                        id,
                         rs.getString("name"),
                         new Coordinates(rs.getDouble("coordinate_x"), rs.getInt("coordinate_y")),
                         rs.getTimestamp("creation_date").toInstant().atZone(ZoneId.systemDefault()),
@@ -240,15 +213,13 @@ public class DatabaseManager {
                         rs.getInt("owner_id")
                 );
 
-                collection.put(collectionKey, band); // Используем collection_key как ключ
+                collection.put(collectionKey, band);
             }
         }
         return collection;
     }
 
-    // 5. Методы update, delete, checkOwnership и т.д.
     public boolean checkOwnership(long collectionKey, int userId) throws SQLException {
-        // МЕНЯЕМ: проверяем по collection_key вместо id
         String sql = "SELECT owner_id FROM music_bands WHERE collection_key = ?";
         try (PreparedStatement stmt = connection.prepareStatement(sql)) {
             stmt.setLong(1, collectionKey);
@@ -259,8 +230,6 @@ public class DatabaseManager {
     }
 
     private void initializeDatabase() throws SQLException {
-        // ВРЕМЕННО используем VARCHAR вместо music_genre для обхода проблемы
-        // После успешного запуска можно будет мигрировать на enum
 
         String createUsersTableSQL =
                 "CREATE TABLE IF NOT EXISTS users (" +
@@ -278,7 +247,6 @@ public class DatabaseManager {
         String createSequenceSQL =
                 "CREATE SEQUENCE IF NOT EXISTS music_bands_id_seq START 1;";
 
-        // ВРЕМЕННО: используем VARCHAR с CHECK constraint
         String createMusicBandsTableSQL =
                 "CREATE TABLE IF NOT EXISTS music_bands (" +
                         "id BIGINT PRIMARY KEY DEFAULT nextval('music_bands_id_seq')," +
@@ -300,7 +268,6 @@ public class DatabaseManager {
                         "CREATE INDEX IF NOT EXISTS idx_music_bands_collection_key ON music_bands(collection_key);";
 
         try (Statement stmt = connection.createStatement()) {
-            // Отключаем транзакции для DDL
             connection.setAutoCommit(true);
 
             stmt.execute(createUsersTableSQL);
@@ -324,13 +291,12 @@ public class DatabaseManager {
     public void close() throws SQLException {
         if (connection != null && !connection.isClosed()) {
             connection.close();
-            System.out.println("Database connection closed successfully."); // ← ДОБАВЛЕНО
+            System.out.println("Database connection closed successfully.");
         }
     }
 
     public TreeMap<Long, MusicBand> loadUserCollection(int userId) throws SQLException {
         TreeMap<Long, MusicBand> userCollection = new TreeMap<>();
-        // ДОБАВЛЯЕМ collection_key в SELECT
         String sql = "SELECT mb.*, s.name as studio_name FROM music_bands mb " +
                 "LEFT JOIN studios s ON mb.studio_id = s.id " +
                 "WHERE mb.owner_id = ?";
@@ -339,7 +305,7 @@ public class DatabaseManager {
             stmt.setInt(1, userId);
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
-                    Long collectionKey = rs.getLong("collection_key"); // ← ДОБАВЛЕНО
+                    Long collectionKey = rs.getLong("collection_key");
                     Long id = rs.getLong("id");
                     int ownerId = rs.getInt("owner_id");
 
@@ -355,7 +321,7 @@ public class DatabaseManager {
                                     new Studio(rs.getString("studio_name")) : null,
                             ownerId
                     );
-                    userCollection.put(collectionKey, band); // ← ИСПРАВЛЕНО: используем collection_key
+                    userCollection.put(collectionKey, band);
                 }
             }
         }

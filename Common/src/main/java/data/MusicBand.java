@@ -16,9 +16,8 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
     private String description;
     private MusicGenre genre;
     private Studio studio;
-    private int ownerId; // Добавлено поле для идентификатора владельца
+    private int ownerId;
 
-    // Конструктор для создания нового объекта
     public MusicBand(String name, Coordinates coordinates, int numberOfParticipants,
                      String description, MusicGenre genre, Studio studio, int ownerId) {
 //        this.id = GeneratorId.generateId();
@@ -29,10 +28,9 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
         setDescription(description);
         setGenre(genre);
         setStudio(studio);
-        setOwnerId(ownerId); // Устанавливаем владельца
+        setOwnerId(ownerId);
     }
 
-    // Конструктор для загрузки из БД
     public MusicBand(Long id, String name, Coordinates coordinates, ZonedDateTime creationDate,
                      int numberOfParticipants, String description, MusicGenre genre,
                      Studio studio, int ownerId) {
@@ -55,7 +53,7 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
         setDescription(description);
         setGenre(genre);
         setStudio(studio);
-        setOwnerId(ownerId); // Устанавливаем владельца
+        setOwnerId(ownerId);
     }
 
     public MusicBand(String name, Coordinates coordinates, int numberOfParticipants,
@@ -67,16 +65,14 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
         setDescription(description);
         setGenre(genre);
         setStudio(studio);
-        // ownerId не устанавливается - будет установлен на сервере
     }
 
     public MusicBand() {
         this.creationDate = ZonedDateTime.now();
     }
 
-    // Добавлены геттер и сеттер для ownerId
     public void setOwnerId(int ownerId) {
-        if (ownerId < 0) {  // Меняем <= 0 на < 0
+        if (ownerId < 0) {
             throw new IllegalArgumentException("Owner ID should be a non-negative number");
         } else {
             this.ownerId = ownerId;
@@ -87,7 +83,6 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
         return ownerId;
     }
 
-    // Остальные методы остаются без изменений...
     public void setCreationDate(ZonedDateTime creationDate) {
         if (creationDate == null) {
             throw new IllegalArgumentException("Creation date value cannot be null");
@@ -184,7 +179,7 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
                         "description=%s\n" +
                         "genre=%s\n" +
                         "studio=%s\n" +
-                        "ownerId=%d\n" + // Добавлено в вывод
+                        "ownerId=%d\n" +
                         "]",
                 id, name, coordinates, creationDate.format(DateTimeFormatter.ofPattern("dd-MM-yyyy HH-mm-ss z")),
                 numberOfParticipants, description, genre, studio, ownerId);
@@ -203,7 +198,7 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
                 Objects.equals(description, o.description) &&
                 Objects.equals(genre, o.genre) &&
                 Objects.equals(studio, o.studio) &&
-                ownerId == o.ownerId; // Добавлено в сравнение
+                ownerId == o.ownerId;
     }
 
     @Override
@@ -216,6 +211,6 @@ public final class MusicBand implements Comparable<MusicBand>, Serializable {
                 description,
                 genre,
                 studio,
-                ownerId); // Добавлено в хэш
+                ownerId);
     }
 }

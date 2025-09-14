@@ -132,18 +132,14 @@ public class Console {
     }
 
     public String readLine() throws IOException{
-//        String s = reader.readLine();
-//        return s;
         try {
             String s = reader.readLine();
             if (s == null) {
-                // Это происходит при Ctrl+C или EOF
                 throw new EOFException("End of input");
             }
             return s;
         } catch (IOException e) {
             if (e.getMessage().contains("Interrupted")) {
-                // Ctrl+C был нажат
                 throw new EOFException("Operation cancelled by user");
             }
             throw e;
@@ -151,7 +147,7 @@ public class Console {
     }
     public String readLines() throws IOException{
         try {
-            return reader.readLine(); // просто возвращаем null при конце файла
+            return reader.readLine();
         } catch (IOException e) {
             if (e.getMessage().contains("Interrupted")) {
                 throw new EOFException("Operation cancelled by user");

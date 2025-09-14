@@ -6,13 +6,11 @@ import commands.commandsWithArgument.*;
 import data.CommandWrapper;
 import data.MusicBand;
 import data.User;
-import utils.CommandMap;
 import utils.DatabaseManager;
 
 import java.io.*;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.net.InetAddress;
 import java.net.SocketException;
 import java.sql.SQLException;
 import java.util.*;
@@ -25,20 +23,16 @@ public class ServerMain {
     private static final int PORT = 12345;
     private static final int BUFFER_SIZE = 65536;
 
-    // Статические поля для управления состоянием сервера
     private static Map<String, Command> commands;
     private static Executor executor;
     private static DatabaseManager dbManager;
-//    private static Set<String> connectedClients = new ConcurrentHashSet<>(); // Потокобезопасный Set
     private static Set<String> connectedClients = ConcurrentHashMap.newKeySet();
 
-    // Пуллы потоков согласно заданию
     private static ExecutorService connectionPool = Executors.newCachedThreadPool();
     private static ExecutorService processingPool = Executors.newFixedThreadPool(10);
     private static ForkJoinPool sendingPool = ForkJoinPool.commonPool();
 
     public static void main(String[] args) {
-        // Параметры подключения к БД
         String dbHost = "pg";
         String dbName = "studs";
         String dbUrl = "jdbc:postgresql://" + dbHost + "/" + dbName;
@@ -46,13 +40,11 @@ public class ServerMain {
         String dbPassword = "dcxOUhUo8IMFxqAD";
 
         try {
-            // Инициализация подключения к БД
             dbManager = new DatabaseManager(dbUrl, dbUser, dbPassword);
             System.out.println("Database connection established successfully");
 
-            // Инициализация Executor и загрузка команд
             executor = new Executor(dbManager);
-            commands = executor.getCommands(); // Предполагается, что такой метод существует
+            commands = executor.getCommands();
 
             System.out.println("Server initialized. Loaded " + executor.getSizeOfCollection() + " music bands.");
             System.out.println("Thread pools initialized:");
@@ -60,7 +52,6 @@ public class ServerMain {
             System.out.println("  - Processing pool (FixedThreadPool, 10 threads)");
             System.out.println("  - Sending pool (ForkJoinPool)");
 
-            // Основной сетевой цикл
             runServer();
 
         } catch (SQLException e) {
@@ -71,9 +62,6 @@ public class ServerMain {
         }
     }
 
-    /**
-     * Основной метод запуска сервера с многопоточной обработкой
-     */
     private static void runServer() {
         try (DatagramSocket socket = new DatagramSocket(PORT)) {
             System.out.println("Server started on port " + PORT + ". Waiting for connections...");
@@ -83,10 +71,8 @@ public class ServerMain {
             while (true) {
                 DatagramPacket packet = new DatagramPacket(buffer, buffer.length);
 
-                // Блокирующее ожидание нового подключения
                 socket.receive(packet);
 
-                // Передаем обработку подключения в connectionPool (CachedThreadPool)
                 connectionPool.submit(new ConnectionHandler(socket, packet));
             }
         } catch (SocketException e) {
@@ -96,9 +82,6 @@ public class ServerMain {
         }
     }
 
-    /**
-     * Обработчик подключения - работает в CachedThreadPool
-     */
     private static class ConnectionHandler implements Runnable {
         private final DatagramSocket socket;
         private final DatagramPacket originalPacket;
@@ -108,19 +91,16 @@ public class ServerMain {
             this.socket = socket;
             this.originalPacket = originalPacket;
 
-            // Создаем копию данных, так как оригинальный буфер будет переиспользован
             this.packetDataCopy = Arrays.copyOf(originalPacket.getData(), originalPacket.getLength());
         }
 
         @Override
         public void run() {
             try {
-                // Десериализация команды из полученных данных
                 ByteArrayInputStream byteStream = new ByteArrayInputStream(packetDataCopy);
                 ObjectInputStream objectStream = new ObjectInputStream(byteStream);
                 CommandWrapper commandWrapper = (CommandWrapper) objectStream.readObject();
 
-                // Регистрируем нового клиента
                 String clientKey = originalPacket.getAddress().getHostAddress() + ":" + originalPacket.getPort();
                 if (connectedClients.add(clientKey)) {
                     System.out.println("New client connected: " + clientKey);
@@ -128,7 +108,6 @@ public class ServerMain {
 
                 System.out.println("Received command from " + clientKey + ": " + commandWrapper.getCommandName());
 
-                // Передаем обработку команды в processingPool (FixedThreadPool)
                 processingPool.submit(new CommandProcessor(socket, originalPacket, commandWrapper, clientKey));
 
             } catch (IOException | ClassNotFoundException e) {
@@ -138,9 +117,6 @@ public class ServerMain {
         }
     }
 
-    /**
-     * Обработчик команд - работает в FixedThreadPool
-     */
     private static class CommandProcessor implements Runnable {
         private final DatagramSocket socket;
         private final DatagramPacket receivePacket;
@@ -171,9 +147,6 @@ public class ServerMain {
         }
     }
 
-    /**
-     * Отправитель ответов - работает в ForkJoinPool
-     */
     private static class ResponseSender implements Runnable {
         private final DatagramSocket socket;
         private final DatagramPacket receivePacket;
@@ -191,16 +164,13 @@ public class ServerMain {
         @Override
         public void run() {
             try {
-                // Отправляем ответ клиенту
                 if (response instanceof ArrayList) {
-                    // Отправка chunked response
                     ArrayList<String> responseList = (ArrayList<String>) response;
                     for (String responseString : responseList) {
                         sendResponse(socket, receivePacket, responseString);
-                        Thread.sleep(10); // Небольшая задержка между пакетами
+                        Thread.sleep(10);
                     }
                 } else {
-                    // Отправка обычного ответа
                     sendResponse(socket, receivePacket, response);
                 }
 
@@ -212,9 +182,6 @@ public class ServerMain {
         }
     }
 
-    /**
-     * Основной метод обработки команд с аутентификацией
-     */
     private static Object processCommandWithMap(CommandWrapper commandWrapper) {
         try {
             String commandName = commandWrapper.getCommandName();
@@ -224,10 +191,8 @@ public class ServerMain {
                 return "Error: Unknown command '" + commandName + "'";
             }
 
-            // Команды, доступные без аутентификации
             boolean isAuthCommand = "register".equals(commandName) || "login".equals(commandName);
 
-            // Проверка аутентификации для всех команд, кроме register/login
             User user = null;
             if (!isAuthCommand) {
                 user = authenticateUser(commandWrapper);
@@ -236,7 +201,6 @@ public class ServerMain {
                 }
             }
 
-            // Обработка команд аутентификации
             if (isAuthCommand) {
                 if (command instanceof RegisterCommand) {
                     ((RegisterCommand) command).setCredentials(
@@ -252,17 +216,14 @@ public class ServerMain {
                 return command.execute();
             }
 
-            // Проверка прав доступа для команд, требующих аутентификации
             if (command.requiresUser() && user == null) {
                 return "Error: Authentication required for command '" + commandName + "'";
             }
 
-            // Обработка аргументов команд
             if (command instanceof CommandWithArgument) {
                 processCommandArguments((CommandWithArgument<?>) command, commandWrapper, commandName);
             }
 
-            // Выполнение команды
             return executeCommand(command, commandWrapper, user);
 
         } catch (Exception e) {
@@ -270,9 +231,6 @@ public class ServerMain {
         }
     }
 
-    /**
-     * Обработка аргументов команд
-     */
     private static void processCommandArguments(CommandWithArgument<?> command,
                                                 CommandWrapper wrapper, String commandName) {
         switch (commandName) {
@@ -295,9 +253,6 @@ public class ServerMain {
         }
     }
 
-    /**
-     * Аутентификация пользователя
-     */
     private static User authenticateUser(CommandWrapper commandWrapper) {
         if (commandWrapper.getLogin() == null || commandWrapper.getPasswordHash() == null) {
             return null;
@@ -311,9 +266,6 @@ public class ServerMain {
         }
     }
 
-    /**
-     * Выполнение команды с передачей пользователя
-     */
     private static Object executeCommand(Command command, CommandWrapper commandWrapper, User user) {
         try {
             String commandName = command.getCommandName();
@@ -328,12 +280,10 @@ public class ServerMain {
                 return "Error: No MusicBand data provided";
             }
 
-            // Обработка команд, требующих пользователя
             if (command instanceof CommandWithUser) {
                 return ((CommandWithUser) command).execute(user);
             }
 
-            // Обработка команд без аутентификации
             return processSimpleCommand(command);
 
         } catch (Exception e) {
@@ -341,9 +291,6 @@ public class ServerMain {
         }
     }
 
-    /**
-     * Выполнение команд с MusicBand
-     */
     private static Object executeMusicBandCommand(Command command, MusicBand band, User user) {
         if (command instanceof Insert) {
             return ((Insert) command).executeWithMusicBand(band, user);
@@ -357,9 +304,6 @@ public class ServerMain {
         return "Error: Unsupported command type";
     }
 
-    /**
-     * Обработка простых команд (разбивка на чанки)
-     */
     private static Object processSimpleCommand(Command command) {
         String result = command.execute();
         int chunkSizeBytes = 60000;
@@ -369,7 +313,6 @@ public class ServerMain {
             return result; // Не нужно разбивать на чанки
         }
 
-        // Разбивка большого ответа на чанки
         List<String> chunks = new ArrayList<>();
         for (int i = 0; i < allBytes.length; i += chunkSizeBytes) {
             int end = Math.min(i + chunkSizeBytes, allBytes.length);
@@ -381,9 +324,6 @@ public class ServerMain {
         return chunks;
     }
 
-    /**
-     * Отправка ответа клиенту
-     */
     private static void sendResponse(DatagramSocket socket, DatagramPacket receivePacket, Object response)
             throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -399,9 +339,6 @@ public class ServerMain {
         socket.send(responsePacket);
     }
 
-    /**
-     * Отправка ошибки клиенту
-     */
     private static void sendErrorResponse(DatagramSocket socket, DatagramPacket receivePacket, String errorMessage) {
         try {
             sendResponse(socket, receivePacket, errorMessage);
@@ -410,16 +347,11 @@ public class ServerMain {
         }
     }
 
-    /**
-     * Корректное завершение работы сервера
-     */
     private static void shutdownServer() {
         System.out.println("Shutting down server...");
 
-        // Завершаем работу пулов потоков
         shutdownPools();
 
-        // Закрываем соединение с БД
         if (dbManager != null) {
             try {
                 dbManager.close();
@@ -433,9 +365,6 @@ public class ServerMain {
         System.exit(1);
     }
 
-    /**
-     * Корректное завершение работы пулов потоков
-     */
     private static void shutdownPools() {
         System.out.println("Shutting down thread pools...");
 
@@ -461,9 +390,6 @@ public class ServerMain {
         }
     }
 
-    /**
-     * Вспомогательный метод для получения информации о клиенте
-     */
     private static String getClientInfo(DatagramPacket packet) {
         return packet.getAddress().getHostAddress() + ":" + packet.getPort();
     }

@@ -25,8 +25,8 @@ public class Executor {
     private final Stack<FileInputStream> scriptStack = new Stack<>();
     private final Set<String> executingScripts = new HashSet<>();
 
-    private final DatabaseManager dbManager; // <-- НОВОЕ
-    private final ReentrantReadWriteLock collectionLock = new ReentrantReadWriteLock(); // <-- НОВОЕ
+    private final DatabaseManager dbManager;
+    private final ReentrantReadWriteLock collectionLock = new ReentrantReadWriteLock();
 
 
 
@@ -121,11 +121,9 @@ public class Executor {
             if (musicBands == null) {
                 return "The collection is 'null'";
             } else if (!musicBands.isEmpty()) {
-                // Очищаем только элементы, принадлежащие пользователю
                 int deletedCount = dbManager.clearUserMusicBands(user.getId());
 
                 if (deletedCount > 0) {
-                    // После успеха в БД удаляем только элементы пользователя из памяти
                     musicBands.entrySet().removeIf(entry -> entry.getValue().getOwnerId() == user.getId());
                     return "The collection was successfully cleared. " + deletedCount + " elements removed";
                 } else {
@@ -194,16 +192,13 @@ public class Executor {
                 return "No music band found with key: " + key;
             }
 
-            // Проверяем, принадлежит ли элемент пользователю (если нужно)
             MusicBand band = musicBands.get(key);
             if (band.getOwnerId() != user.getId()) {
                 return "Error: You don't have permission to remove this band";
             }
 
-            // Удаляем из БД
             boolean success = dbManager.removeMusicBand(key, user.getId());
             if (success) {
-                // Только после успеха в БД удаляем из памяти
                 musicBands.remove(key);
                 return "Music band removed successfully.";
             } else {
@@ -221,14 +216,12 @@ public class Executor {
 
         collectionLock.writeLock().lock();
         try {
-            // Получаем ключи для удаления (меньше указанного)
             Set<Long> keysToRemove = musicBands.headMap(key, false).keySet();
 
             if (keysToRemove.isEmpty()) {
                 return "No elements found with keys lower than: " + key;
             }
 
-            // Удаляем элементы из БД (только принадлежащие пользователю)
             int deletedCount = 0;
             for (Long k : keysToRemove) {
                 MusicBand band = musicBands.get(k);
@@ -240,20 +233,15 @@ public class Executor {
                 }
             }
 
-            // Удаляем из памяти только те элементы, которые успешно удалились из БД
             if (deletedCount > 0) {
-                // Создаем копию для безопасного удаления во время итерации
                 Set<Long> successfullyRemoved = new HashSet<>();
                 for (Long k : keysToRemove) {
                     MusicBand band = musicBands.get(k);
                     if (band != null && band.getOwnerId() == user.getId()) {
-                        // Проверяем, был ли элемент удален из БД
-                        // (предполагаем, что если removeMusicBand вернул true, то элемент удален)
                         successfullyRemoved.add(k);
                     }
                 }
 
-                // Удаляем из памяти
                 successfullyRemoved.forEach(musicBands::remove);
 
                 return "Successfully deleted " + deletedCount + " items";
@@ -300,13 +288,10 @@ public String insert(Long key, MusicBand band, User user) {
             return "The collection already contains the key: " + key;
         }
 
-        // Устанавливаем владельца перед вставкой в БД
         band.setOwnerId(user.getId());
 
-        // Пытаемся вставить в БД
         boolean success = dbManager.insertMusicBand(key, band, user.getId());
         if (success) {
-            // Добавляем в коллекцию с переданным ключом
             musicBands.put(key, band);
             return "Music band inserted successfully with key: " + key +
                     " and generated ID: " + band.getId();
@@ -329,21 +314,18 @@ public String insert(Long key, MusicBand band, User user) {
                 return "The collection doesn't contain the key " + id;
             }
 
-            // Проверяем, принадлежит ли элемент пользователю
             MusicBand existingBand = musicBands.get(id);
             if (existingBand.getOwnerId() != user.getId()) {
                 return "Error: You don't have permission to update this band";
             }
 
-            // Устанавливаем владельца перед вставкой в БД
             band.setOwnerId(user.getId());
 
-            // Обновляем в БД
             boolean success = dbManager.updateMusicBand(id, band, user.getId());
             if (success) {
-                band.setId(existingBand.getId()); // ← existingBand имеет правильный ID
+                band.setId(existingBand.getId());
                 band.setOwnerId(user.getId());
-                musicBands.put(id, band); // Ключ коллекции остается прежним (id)
+                musicBands.put(id, band);
                 return "Music band updated successfully.";
             } else {
                 return "Failed to update music band in database.";
@@ -364,7 +346,6 @@ public String insert(Long key, MusicBand band, User user) {
                 return "The collection is empty";
             }
 
-            // Получаем элементы для удаления (только принадлежащие пользователю)
             List<Long> keysToRemove = musicBands.entrySet().stream()
                     .filter(entry -> {
                         MusicBand currentBand = entry.getValue();
@@ -378,7 +359,6 @@ public String insert(Long key, MusicBand band, User user) {
                 return "No elements found to remove for this user";
             }
 
-            // Удаляем элементы из БД
             int deletedCount = 0;
             for (Long key : keysToRemove) {
                 boolean success = dbManager.removeMusicBand(key, user.getId());
@@ -387,10 +367,8 @@ public String insert(Long key, MusicBand band, User user) {
                 }
             }
 
-            // Удаляем из памяти только успешно удаленные из БД элементы
             if (deletedCount > 0) {
                 for (Long key : keysToRemove) {
-                    // Проверяем, что элемент еще существует и принадлежит пользователю
                     MusicBand existingBand = musicBands.get(key);
                     if (existingBand != null && existingBand.getOwnerId() == user.getId()) {
                         musicBands.remove(key);
@@ -417,7 +395,6 @@ public String replace_if_lower(Long key, MusicBand newBand, User user) {
             return "The collection is empty";
         }
 
-        // Проверяем существование ключа и права доступа
         if (!musicBands.containsKey(key)) {
             return "The collection doesn't contain the key " + key;
         }
@@ -427,18 +404,15 @@ public String replace_if_lower(Long key, MusicBand newBand, User user) {
             return "Error: You don't have permission to replace this band";
         }
 
-        // Проверяем условие замены (новый элемент должен быть "меньше")
         if (compareByDateAndName.compare(oldBand, newBand) <= 0) {
             return "New value is not lower than existing value.";
         }
 
-        // Заменяем в БД
-        newBand.setId(oldBand.getId()); // ← ИСПРАВЛЕНО: используем оригинальный ID объекта
-        newBand.setOwnerId(user.getId()); // Сохраняем владельца
+        newBand.setId(oldBand.getId());
+        newBand.setOwnerId(user.getId());
 
         boolean success = dbManager.updateMusicBand(key, newBand, user.getId());
         if (success) {
-            // Только после успеха в БД заменяем в памяти
             musicBands.put(key, newBand);
             return "Music band replaced successfully.";
         } else {
@@ -461,7 +435,6 @@ public String replace_if_lower(Long key, MusicBand newBand, User user) {
         try {
             canonicalPath = scriptFile.getCanonicalPath();
 
-            // Используем readLock для проверки рекурсии (только чтение)
             collectionLock.readLock().lock();
             try {
                 if (executingScripts.contains(canonicalPath)) {
@@ -478,7 +451,6 @@ public String replace_if_lower(Long key, MusicBand newBand, User user) {
                 return "Error: Cannot read script file: " + filename;
             }
 
-            // Добавляем в список исполняемых скриптов (требует writeLock)
             collectionLock.writeLock().lock();
             try {
                 executingScripts.add(canonicalPath);
@@ -516,7 +488,6 @@ public String replace_if_lower(Long key, MusicBand newBand, User user) {
                                         .append(": Error: execute_script requires filename\n");
                                 continue;
                             }
-                            // Передаем пользователя в рекурсивный вызов
                             result.append(execute_script(input.argument, user)).append("\n");
                         } else {
                             result.append(processScriptCommand(input, lineNumber, user)).append("\n");
@@ -537,7 +508,6 @@ public String replace_if_lower(Long key, MusicBand newBand, User user) {
             return "Error reading script: " + e.getMessage();
         } finally {
             if (canonicalPath != null) {
-                // Удаляем из списка исполняемых скриптов (требует writeLock)
                 collectionLock.writeLock().lock();
                 try {
                     executingScripts.remove(canonicalPath);
@@ -555,7 +525,6 @@ public String replace_if_lower(Long key, MusicBand newBand, User user) {
                 return "Line " + lineNumber + ": Unknown command: " + input.command;
             }
 
-            // Проверяем аутентификацию для команд, требующих пользователя
             if (command.requiresUser() && user == null) {
                 return "Line " + lineNumber + ": Error: Authentication required for command '" + input.command + "'";
             }
@@ -585,7 +554,6 @@ public String replace_if_lower(Long key, MusicBand newBand, User user) {
                         return "Line " + lineNumber + ": Error: Band name cannot be empty";
                     }
 
-                    // Используем CommandWithUser для команд с MusicBand
                     if (command instanceof CommandWithUser) {
                         return ((CommandWithUser) command).executeWithMusicBand(band, user);
                     }
@@ -597,12 +565,10 @@ public String replace_if_lower(Long key, MusicBand newBand, User user) {
                 }
             }
 
-            // Для команд без MusicBand, но требующих пользователя
             if (command instanceof CommandWithUser) {
                 return ((CommandWithUser) command).execute(user);
             }
 
-            // Для команд, не требующих пользователя
             return command.execute();
 
         } catch (Exception e) {

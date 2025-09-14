@@ -18,7 +18,6 @@ public class ClientMain {
     private static String SERVER_HOST = "localhost";
     private static int SERVER_PORT = 12345;
 
-    // Новые поля для хранения учетных данных
     private static String userLogin;
     private static String userPasswordHash;
 
@@ -72,14 +71,12 @@ public class ClientMain {
 
                 Object response = sendCommandToServer(input, musicBand);
 
-                // ИЗМЕНЕНО: Добавлена обработка chunk'ов (ArrayList) от сервера
                 if (response instanceof ArrayList) {
-                    // Сервер отправил ответ, разбитый на части - собираем и выводим
                     ArrayList<String> chunks = (ArrayList<String>) response;
                     for (String chunk : chunks) {
-                        System.out.print(chunk); // Выводим все части подряд без переносов
+                        System.out.print(chunk);
                     }
-                    System.out.println(); // Добавляем перенос строки после всего сообщения
+                    System.out.println();
                 } else if (response instanceof Object[]) {
                     Arrays.stream((Object[]) response).forEach(System.out::println);
                 } else {
@@ -170,7 +167,6 @@ public class ClientMain {
             String passwordHash = hashPassword(password);
             String commandName = choice.equalsIgnoreCase("r") ? "register" : "login";
 
-            // Отправляем команду аутентификации
             Object response = sendAuthCommand(commandName, login, passwordHash);
             System.out.println(response);
 
@@ -186,60 +182,6 @@ public class ClientMain {
         return false;
     }
 
-//    private static Object sendAuthCommand(String commandName, String login, String passwordHash) throws IOException {
-//        try (DatagramChannel channel = DatagramChannel.open()) {
-//            // ИЗМЕНЕНО: Переход на блокирующий режим
-//            channel.configureBlocking(true); // Блокирующий режим - ждем ответа
-//            channel.socket().setSoTimeout(5000); // 5 секунд
-//            try{
-//                channel.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT));
-//
-//                // Создаем CommandWrapper для аутентификации
-//                CommandWrapper wrapper = new CommandWrapper();
-//                wrapper.setCommandName(commandName);
-//                wrapper.setLogin(login);
-//                wrapper.setPasswordHash(passwordHash);
-//
-//                // Отправляем и получаем ответ
-//                ByteArrayOutputStream baos = new ByteArrayOutputStream();
-//                ObjectOutputStream oos = new ObjectOutputStream(baos);
-//                oos.writeObject(wrapper);
-//                oos.flush();
-//
-//                byte[] requestData = baos.toByteArray();
-//                ByteBuffer buffer = ByteBuffer.wrap(requestData);
-//                channel.write(buffer);
-//
-//                // ИЗМЕНЕНО: Блокирующее чтение - канал будет ждать ответа
-//                ByteBuffer responseBuffer = ByteBuffer.allocate(65536);
-//                int bytesRead = channel.read(responseBuffer); // Блокируется здесь до получения данных
-//
-//                if (bytesRead == -1) {
-//                    throw new IOException("Connection closed by server");
-//                }
-//
-//                responseBuffer.flip();
-//                byte[] responseData = new byte[responseBuffer.remaining()];
-//                responseBuffer.get(responseData);
-//
-//                ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(responseData));
-//                return ois.readObject();
-//            }catch (NoRouteToHostException e) {
-//                // Сервер недоступен
-//                throw new IOException("Server is unreachable", e);
-//            } catch (ConnectException e) {
-//                // Соединение отклонено
-//                throw new IOException("Connection refused by server", e);
-//            } catch (SocketTimeoutException e) {
-//                // Таймаут соединения
-//                throw new IOException("Connection timeout", e);
-//            }
-//
-//        } catch (ClassNotFoundException e) {
-//            throw new IOException("Error deserializing response", e);
-//        }
-//    }
-
     private static Object sendAuthCommand(String commandName, String login, String passwordHash) throws IOException {
         try (DatagramChannel channel = DatagramChannel.open()) {
             channel.configureBlocking(true);
@@ -248,13 +190,11 @@ public class ClientMain {
             try {
                 channel.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT));
 
-                // Создаем CommandWrapper для аутентификации
                 CommandWrapper wrapper = new CommandWrapper();
                 wrapper.setCommandName(commandName);
                 wrapper.setLogin(login);
                 wrapper.setPasswordHash(passwordHash);
 
-                // Отправляем и получаем ответ
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 ObjectOutputStream oos = new ObjectOutputStream(baos);
                 oos.writeObject(wrapper);
@@ -265,7 +205,7 @@ public class ClientMain {
                 channel.write(buffer);
 
                 ByteBuffer responseBuffer = ByteBuffer.allocate(65536);
-                int bytesRead = channel.read(responseBuffer); // Блокируется здесь
+                int bytesRead = channel.read(responseBuffer);
 
                 if (bytesRead == -1) {
                     throw new IOException("Connection closed by server");
@@ -279,13 +219,10 @@ public class ClientMain {
                 return ois.readObject();
 
             } catch (SocketTimeoutException e) {
-                // Таймаут чтения - сервер не ответил
                 throw new IOException("Server did not respond within timeout", e);
             } catch (PortUnreachableException e) {
-                // Порт недоступен (ICMP сообщение)
                 throw new IOException("Server port is unreachable", e);
             } catch (IOException e) {
-                // Общая обработка других IO исключений
                 if (e.getMessage() != null) {
                     throw new IOException("Network error: " + e.getMessage(), e);
                 } else {
@@ -329,16 +266,11 @@ public class ClientMain {
 
     private static Object sendCommandToServer(Console.CommandInput input, MusicBand musicBand) throws IOException {
         try (DatagramChannel channel = DatagramChannel.open()) {
-            // ИЗМЕНЕНО: Переход на блокирующий режим
-            channel.configureBlocking(true); // Блокирующий режим - канал будет ждать операций
-            channel.socket().setSoTimeout(5000); // ← ДОБАВЬТЕ ЭТУ СТРОЧКУ!
+            channel.configureBlocking(true);
+            channel.socket().setSoTimeout(5000);
 
             try {
                 channel.connect(new InetSocketAddress(SERVER_HOST, SERVER_PORT));
-
-//                if (!channel.isConnected()) {
-//                    throw new IOException("Failed to establish address");
-//                }
 
                 CommandWrapper commandWrapper = createCommandWrapper(input, musicBand);
                 if (commandWrapper == null) {
@@ -354,9 +286,8 @@ public class ClientMain {
                 ByteBuffer buffer = ByteBuffer.wrap(requestData);
                 channel.write(buffer);
 
-                // ИЗМЕНЕНО: Упрощенная логика чтения в блокирующем режиме
                 ByteBuffer responseBuffer = ByteBuffer.allocate(65536);
-                int bytesRead = channel.read(responseBuffer); // Блокируется здесь до получения ответа
+                int bytesRead = channel.read(responseBuffer);
 
                 if (bytesRead == -1) {
                     throw new IOException("Connection closed by server");
@@ -369,10 +300,8 @@ public class ClientMain {
                 ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(responseData));
                 return ois.readObject();
             }catch (SocketTimeoutException e) {
-                // Таймаут чтения - сервер не ответил
                 throw new IOException("Server did not respond within timeout", e);
             } catch (PortUnreachableException e) {
-                // Порт недоступен (ICMP сообщение)
                 throw new IOException("Server port is unreachable", e);
             } catch (IOException e) {
                 String errorMsg = e.getMessage();
@@ -395,7 +324,6 @@ public class ClientMain {
             CommandWrapper wrapper = new CommandWrapper();
             wrapper.setCommandName(input.command);
 
-            // ДОБАВЛЯЕМ УЧЕТНЫЕ ДАННЫЕ К КАЖДОМУ ЗАПРОСУ
             wrapper.setLogin(userLogin);
             wrapper.setPasswordHash(userPasswordHash);
 
